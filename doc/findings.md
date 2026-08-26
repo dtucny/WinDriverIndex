@@ -260,6 +260,22 @@ doesn't edge-cache `.json` by default, so add a Cache Rule (hostname
 windriverindex.tucny.com → Eligible for cache, Edge TTL = use cache-control)
 to stop every request falling through to R2 and burning Class B ops.
 
+## 2026-08-26 — human-readable landing page
+
+`public/index.html` (self-contained, theme-aware dashboard: vendor-lag
+scorecard, back-catalogue heatmap, worst-offender boards, JSON links, GitHub
+links) deploys to the bucket root. Serves fine at /index.html.
+
+Two Cloudflare notes:
+- **Root `/` 404s.** R2 custom domains don't resolve an index document.
+  Fix (one-time, free): tucny.com → Rules → Transform Rules → Rewrite URL →
+  when hostname = windriverindex.tucny.com AND URI path = "/", rewrite path
+  to /index.html. Serves the page at / without changing the URL.
+- **Plain `python-urllib` UA gets 403** (Cloudflare bot protection) while
+  curl/browsers work. Fine for humans, but a driver-checker using a default
+  UA may be blocked — consider a WAF/bot exception for the /v1/ paths if
+  programmatic consumers hit it.
+
 ## Related prior art — Lenovo publishes what §1 says nobody does (laptops)
 
 Lenovo Legion Toolkit's "check for driver and software updates" is a Vantage
