@@ -93,6 +93,29 @@
   }
   :root[data-theme="dark"] .c1,:root[data-theme="dark"] .c2,:root[data-theme="dark"] .c3{color:#eaf1fb}
   :root[data-theme="dark"] .c4,:root[data-theme="dark"] .c5{color:#0f2136}
+  /* per-vendor best/worst */
+  .vgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:14px}
+  .vblock{padding:16px 18px}
+  .vhead{display:flex;justify-content:space-between;align-items:baseline;font-weight:650;font-size:1.05rem;
+    padding-bottom:10px;border-bottom:1px solid var(--grid)}
+  .vhead .pos{color:var(--muted);font-size:.8rem;font-weight:400}
+  .bw{padding:12px 0;border-bottom:1px solid var(--grid)}
+  .bw:last-child{border-bottom:none;padding-bottom:0}
+  .tag{font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+  .tag.good{color:var(--good)} .tag.crit{color:var(--crit)}
+  .bname{font-weight:600;margin:3px 0 8px}
+  .bname .sk{color:var(--muted);font-weight:400;font-size:.85rem;margin-left:4px}
+  .bname .hl{display:block;color:var(--ink2);font-weight:400;font-size:.82rem;margin-top:1px}
+  .chips{display:flex;flex-wrap:wrap;gap:6px}
+  .chip{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:20px;
+    font-size:.76rem;border:1px solid var(--ring);white-space:nowrap}
+  .chip .cv{font-variant-numeric:tabular-nums;font-weight:700}
+  .chip.g{background:color-mix(in srgb,var(--good) 13%,var(--surface));color:var(--good);
+    border-color:color-mix(in srgb,var(--good) 32%,transparent)}
+  .chip.a{background:color-mix(in srgb,var(--warn) 15%,var(--surface));color:var(--warn);
+    border-color:color-mix(in srgb,var(--warn) 34%,transparent)}
+  .chip.r{background:color-mix(in srgb,var(--crit) 13%,var(--surface));color:var(--crit);
+    border-color:color-mix(in srgb,var(--crit) 32%,transparent)}
   .legend{display:flex;gap:6px;align-items:center;color:var(--muted);font-size:.8rem;margin-top:10px;flex-wrap:wrap}
   .legend i{width:16px;height:12px;border-radius:3px;display:inline-block}
   .foot{color:var(--ink2);font-size:.9rem;margin-top:2.8rem;border-top:1px solid var(--grid);padding-top:1.4rem}
@@ -246,25 +269,43 @@ drift for years.</p>
 </div>
 </div>
 
-<h2>Most neglected boards</h2>
-<p class="note">Boards furthest behind the water line on any single driver family —
-overwhelmingly AM4, still sold and still in service.</p>
-<div class="card scroll">
-<table>
-  <thead><tr><th>Board</th><th>Vendor</th><th>Socket</th>
-    <th class="num">Worst lag</th><th class="num">Families behind</th></tr></thead>
-  <tbody>
-    <tr><td>Fatal1ty AB350 Gaming K4</td><td>ASRock</td><td>AM4</td><td class="num">8.5 yr</td><td class="num">2 / 4</td></tr>
-    <tr><td>X470 Taichi Ultimate</td><td>ASRock</td><td>AM4</td><td class="num">8.1 yr</td><td class="num">4 / 7</td></tr>
-    <tr><td>X470 Master SLI</td><td>ASRock</td><td>AM4</td><td class="num">8.1 yr</td><td class="num">4 / 6</td></tr>
-    <tr><td>Fatal1ty X370 Gaming-ITX/ac</td><td>ASRock</td><td>AM4</td><td class="num">7.6 yr</td><td class="num">4 / 6</td></tr>
-    <tr><td>Fatal1ty AB350 Gaming-ITX/ac</td><td>ASRock</td><td>AM4</td><td class="num">7.5 yr</td><td class="num">4 / 6</td></tr>
-    <tr><td>X570 AQUA</td><td>ASRock</td><td>AM4</td><td class="num">6.7 yr</td><td class="num">5 / 8</td></tr>
-    <tr><td>B450M/ac</td><td>ASRock</td><td>AM4</td><td class="num">6.7 yr</td><td class="num">3 / 5</td></tr>
-    <tr><td>X570 Phantom Gaming-ITX/TB3</td><td>ASRock</td><td>AM4</td><td class="num">5.9 yr</td><td class="num">4 / 7</td></tr>
-  </tbody>
-</table>
+<h2>Best &amp; worst maintained, by vendor</h2>
+<p class="note">Every vendor keeps some boards current and lets others rot — so here is each vendor’s best-kept and most-neglected board, broken down by component. The chips show <b>where</b> the lag is: one stale driver reads very differently from a board abandoned across the board.</p>
+<div class="vgrid">
+<div class="card vblock"><div class="vhead">MSI<span class="pos">177 boards</span></div>
+  <div class="bw"><div class="tag good">▲ Best kept</div>
+    <div class="bname">PRO B860-P WIFI <span class="sk">LGA1851</span><span class="hl">worst 143d behind · 15 families</span></div>
+    <div class="chips"><span class="chip a">Chipset<b class="cv">143d</b></span><span class="chip a">Graphics<b class="cv">80d</b></span><span class="chip a">Audio<b class="cv">1d</b></span><span class="chip a">LAN<b class="cv">21d</b></span><span class="chip a">Wireless<b class="cv">36d</b></span><span class="chip g">Storage<b class="cv">✓</b></span></div></div>
+  <div class="bw"><div class="tag crit">▼ Most neglected</div>
+    <div class="bname">MEG X570 GODLIKE <span class="sk">AM4</span><span class="hl">5.7 yr behind · 5 families</span></div>
+    <div class="chips"><span class="chip g">Chipset<b class="cv">✓</b></span><span class="chip r">Audio<b class="cv">5.7yr</b></span><span class="chip r">LAN<b class="cv">3.0yr</b></span><span class="chip r">Wireless<b class="cv">2.0yr</b></span><span class="chip r">Storage<b class="cv">1.7yr</b></span></div></div>
 </div>
+<div class="card vblock"><div class="vhead">ASUS<span class="pos">269 boards</span></div>
+  <div class="bw"><div class="tag good">▲ Best kept</div>
+    <div class="bname">ROG CROSSHAIR X870E EDITION 20 <span class="sk">AM5</span><span class="hl">worst 50d behind · 12 families</span></div>
+    <div class="chips"><span class="chip g">Chipset<b class="cv">✓</b></span><span class="chip g">Graphics<b class="cv">✓</b></span><span class="chip a">Audio<b class="cv">50d</b></span><span class="chip g">LAN<b class="cv">✓</b></span><span class="chip g">Wireless<b class="cv">✓</b></span><span class="chip g">Storage<b class="cv">✓</b></span><span class="chip a">USB<b class="cv">37d</b></span></div></div>
+  <div class="bw"><div class="tag crit">▼ Most neglected</div>
+    <div class="bname">ROG MAXIMUS Z690 APEX <span class="sk">LGA1700</span><span class="hl">4.8 yr behind · 14 families</span></div>
+    <div class="chips"><span class="chip r">Chipset<b class="cv">1.9yr</b></span><span class="chip r">Graphics<b class="cv">3.7yr</b></span><span class="chip r">Audio<b class="cv">4.8yr</b></span><span class="chip a">LAN<b class="cv">360d</b></span><span class="chip r">Wireless<b class="cv">1.4yr</b></span><span class="chip a">Storage<b class="cv">188d</b></span><span class="chip r">USB<b class="cv">3.6yr</b></span></div></div>
+</div>
+<div class="card vblock"><div class="vhead">Gigabyte<span class="pos">313 boards</span></div>
+  <div class="bw"><div class="tag good">▲ Best kept</div>
+    <div class="bname">Z890 AERO G <span class="sk">LGA1851</span><span class="hl">worst 195d behind · 15 families</span></div>
+    <div class="chips"><span class="chip a">Chipset<b class="cv">181d</b></span><span class="chip a">Graphics<b class="cv">106d</b></span><span class="chip a">Audio<b class="cv">195d</b></span><span class="chip g">LAN<b class="cv">✓</b></span><span class="chip a">Wireless<b class="cv">90d</b></span><span class="chip g">Storage<b class="cv">✓</b></span><span class="chip a">USB<b class="cv">9d</b></span></div></div>
+  <div class="bw"><div class="tag crit">▼ Most neglected</div>
+    <div class="bname">B450 AORUS Elite V2 (rev. 1.x) <span class="sk">AM4</span><span class="hl">4.8 yr behind · 4 families</span></div>
+    <div class="chips"><span class="chip r">Chipset<b class="cv">2.3yr</b></span><span class="chip r">Graphics<b class="cv">2.4yr</b></span><span class="chip r">Audio<b class="cv">4.8yr</b></span><span class="chip r">LAN<b class="cv">2.0yr</b></span></div></div>
+</div>
+<div class="card vblock"><div class="vhead">ASRock<span class="pos">363 boards</span></div>
+  <div class="bw"><div class="tag good">▲ Best kept</div>
+    <div class="bname">A620AM-P WiFi <span class="sk">AM5</span><span class="hl">worst 6d behind · 7 families</span></div>
+    <div class="chips"><span class="chip g">Chipset<b class="cv">✓</b></span><span class="chip g">Graphics<b class="cv">✓</b></span><span class="chip g">Audio<b class="cv">✓</b></span><span class="chip g">LAN<b class="cv">✓</b></span><span class="chip a">Wireless<b class="cv">6d</b></span></div></div>
+  <div class="bw"><div class="tag crit">▼ Most neglected</div>
+    <div class="bname">Fatal1ty AB350 Gaming K4 <span class="sk">AM4</span><span class="hl">8.5 yr behind · 4 families</span></div>
+    <div class="chips"><span class="chip g">Chipset<b class="cv">✓</b></span><span class="chip a">Graphics<b class="cv">19d</b></span><span class="chip r">Audio<b class="cv">8.5yr</b></span><span class="chip r">LAN<b class="cv">4.2yr</b></span></div></div>
+</div>
+</div>
+<div class="legend" style="margin-top:12px">component vs the newest any vendor ships: <span class="chip g">current<b class="cv">✓</b></span> <span class="chip a">behind<b class="cv">&lt;1yr</b></span> <span class="chip r">behind<b class="cv">1yr+</b></span></div>
 
 <h2>Use the data</h2>
 <p class="note">Everything here is static JSON, CORS-enabled, versioned, and free
