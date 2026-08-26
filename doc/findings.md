@@ -247,6 +247,19 @@ MSI clearly best-maintained (p90 340 d, only 37% of boards >1yr behind);
 ASRock/Gigabyte worst (>90% of boards a year-plus behind on ≥1 family).
 Store: 35 GB payloads, 744 MB published JSON.
 
+## 2026-08-26 — live on Cloudflare R2
+
+First deploy done. Canonical base: **https://windriverindex.tucny.com**
+(bucket `windriverindex`, custom domain). Verified: 200 + application/json,
+`access-control-allow-origin: *`, Brotli on the wire, `latest/` = 1h
+revalidate, `/v1/{date}/` = immutable. Credentials live in
+~/.config/winidx/r2.env (chmod 600, account API token, never committed).
+
+Outstanding CDN tweak: responses show `cf-cache-status: DYNAMIC` — Cloudflare
+doesn't edge-cache `.json` by default, so add a Cache Rule (hostname
+windriverindex.tucny.com → Eligible for cache, Edge TTL = use cache-control)
+to stop every request falling through to R2 and burning Class B ops.
+
 ## Related prior art — Lenovo publishes what §1 says nobody does (laptops)
 
 Lenovo Legion Toolkit's "check for driver and software updates" is a Vantage
