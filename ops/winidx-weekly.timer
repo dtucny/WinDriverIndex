@@ -1,0 +1,12 @@
+[Unit]
+Description=Run WinDriverIndex weekly
+
+[Timer]
+# Monday 06:00 local; catches up if the machine was off (WSL: requires the
+# distro to be running — consider Windows Task Scheduler starting wsl.exe).
+OnCalendar=Mon 06:00
+Persistent=true
+RandomizedDelaySec=1h
+
+[Install]
+WantedBy=timers.target

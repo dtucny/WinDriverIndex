@@ -1,0 +1,22 @@
+# Weekly Tier-1 refresh + incremental pipeline (spec §5, §10 step 8).
+# Install (user units survive logout only with lingering enabled):
+#   mkdir -p ~/.config/systemd/user
+#   cp ops/winidx-weekly.{service,timer} ~/.config/systemd/user/
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now winidx-weekly.timer
+#   loginctl enable-linger $USER
+[Unit]
+Description=WinDriverIndex weekly crawl and publish
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/git/WinDriverIndex
+# Stages run sequentially: crawlers are polite (rate-limited per host), fetch
+# only downloads artefacts Tier 1 newly surfaced, extract/assign/publish are
+# local. A vendor failing (e.g. site redesign) stops the run before publish,
+# so the published index never goes stale-but-wrong silently.
+ExecStart=%h/.local/bin/uv run winidx crawl
+ExecStart=%h/.local/bin/uv run winidx fetch
+ExecStart=%h/.local/bin/uv run winidx extract
+ExecStart=%h/.local/bin/uv run winidx assign
+ExecStart=%h/.local/bin/uv run winidx publish
