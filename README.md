@@ -4,6 +4,23 @@ A public, machine-readable index of motherboard driver versions across MSI,
 Gigabyte, ASRock, and ASUS — and the **vendor lag metric**: how far behind the
 newest available driver each vendor's board listings sit.
 
+## 🔗 Live index — https://windriverindex.tucny.com
+
+Static JSON, CORS-enabled, served from Cloudflare. Start here:
+
+| Endpoint | What it is |
+|---|---|
+| [`/v1/latest/water-level.json`](https://windriverindex.tucny.com/v1/latest/water-level.json) | Newest known version per driver family |
+| [`/v1/latest/vendor-lag.json`](https://windriverindex.tucny.com/v1/latest/vendor-lag.json) | The vendor-lag metric |
+| [`/v1/latest/families.json`](https://windriverindex.tucny.com/v1/latest/families.json) | Family table with HWID sets |
+| [`/v1/latest/boards.json`](https://windriverindex.tucny.com/v1/latest/boards.json) | Board catalogue (chipset / socket) |
+| `/v1/latest/by-hwid/{hwid}.json` | Point lookup by hardware ID |
+
+`latest/` tracks the newest crawl; pin an immutable dated snapshot at
+`/v1/{YYYY-MM-DD}/…` for stability. Every file carries a `schema_version`.
+"Latest" means the newest version any vendor has *published*, not a judgement
+that it is good (see the caveat field in each file).
+
 Design: [doc/spec.md](doc/spec.md). Empirical findings: [doc/findings.md](doc/findings.md).
 
 ## Setup
@@ -58,10 +75,10 @@ Each run writes an immutable dated snapshot (`/v1/{date}/`, cached forever)
 and updates `/v1/latest/` (short TTL). Consumers pin a dated path for
 stability or follow `latest` for freshness.
 
-**Canonical base URL:** `https://windriverindex.tucny.com` — e.g. the current
-newest-version table is at
-`https://windriverindex.tucny.com/v1/latest/water-level.json` and a point
-lookup at `https://windriverindex.tucny.com/v1/latest/by-hwid/{hwid}.json`.
+**Canonical base URL:** https://windriverindex.tucny.com — e.g. the current
+newest-version table is
+[water-level.json](https://windriverindex.tucny.com/v1/latest/water-level.json),
+and a point lookup lives at `/v1/latest/by-hwid/{hwid}.json`.
 
 All four vendor crawlers are implemented. ASRock needs browser-harvested
 Incapsula cookies in `data/asrock_cookies.txt` (see doc/findings.md);
