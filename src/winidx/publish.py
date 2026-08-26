@@ -71,24 +71,29 @@ def run(conn: sqlite3.Connection, *, log=print) -> dict:
 def _effective_versions(conn) -> dict[int, versions.ParsedVersion]:
     """Comparable version per artefact. Vendors sometimes renumber the same
     driver with their own scheme (AMD's '1.8240.169' for MediaTek's
-    '1.1030.x' Bluetooth line); the INF DriverVer is canonical, so when INF
-    evidence exists and none of it matches the listing version, the newest
-    INF version replaces the listing's for comparison purposes."""
+    '1.1044.x' Bluetooth line); the INF DriverVer is canonical, so when INF
+    evidence disagrees with the listing the INF version replaces it.
+
+    The override is confined to INFs on the SAME major-version line as the
+    listing. A bundled package carries INFs from several components (an ASUS
+    AMD-chipset zip also ships NPU/GPIO INFs numbered 32.x); taking the global
+    max would misreport the chipset family's water level as the NPU version.
+    Same-major scoping keeps the renumbering fix — the rebadged driver shares
+    the listing's major — while rejecting unrelated bundled components."""
     eff: dict[int, versions.ParsedVersion] = {}
     for r in conn.execute("SELECT artefact_id, version_raw, sha256 FROM artefact"
                           " WHERE kind = 'driver'"):
         listing = versions.parse(r["version_raw"])
         eff[r["artefact_id"]] = listing
-        if not r["sha256"]:
+        if not r["sha256"] or not listing.tuple:
             continue
-        inf_vers = [versions.parse(v) for (v,) in conn.execute(
-            "SELECT driver_ver FROM inf WHERE payload_sha256 = ?",
-            (r["sha256"],)) if v]
-        if inf_vers and listing.tuple and \
-                not any(iv.tuple == listing.tuple for iv in inf_vers):
-            best = max(inf_vers, key=versions.compare_key)
-            if best.tuple:
-                eff[r["artefact_id"]] = best
+        same_major = [
+            iv for (v,) in conn.execute(
+                "SELECT driver_ver FROM inf WHERE payload_sha256 = ?", (r["sha256"],))
+            if v and (iv := versions.parse(v)).tuple
+            and iv.tuple[0] == listing.tuple[0]]
+        if same_major and not any(iv.tuple == listing.tuple for iv in same_major):
+            eff[r["artefact_id"]] = max(same_major, key=versions.compare_key)
     return eff
 
 

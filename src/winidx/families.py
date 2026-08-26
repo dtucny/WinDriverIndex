@@ -22,7 +22,9 @@ import sqlite3
 
 # (family name, silicon_vendor, component, [patterns])
 RULES: list[tuple[str, str, str, list[str]]] = [
-    ("AMD Chipset", "amd", "chipset", [r"amd chipset", r"chipset amd"]),
+    # Specific AMD components come before AMD Chipset: ASUS files NPU under a
+    # 'chipset/amd/npu' path whose normalised text contains 'chipset amd',
+    # which the chipset rule would otherwise claim.
     ("AMD Graphics", "amd", "graphics",
      [r"amd graphics", r"amd apu", r"\bapu\b", r"amd vga"]),
     ("AMD RAID", "amd", "storage",
@@ -35,6 +37,7 @@ RULES: list[tuple[str, str, str, list[str]]] = [
     ("AMD NPU", "amd", "npu", [r"amd npu", r"npu amd"]),
     ("AMD Bluetooth", "amd", "bluetooth", [r"amd blue", r"amd bt\b"]),
     ("AMD Wi-Fi", "amd", "wlan", [r"amd wi-?fi"]),
+    ("AMD Chipset", "amd", "chipset", [r"amd chipset", r"chipset amd"]),
 
     # NB: Gigabyte's component hint for both radio drivers is 'WLAN+BT', so
     # bluetooth rules must demand the word 'bluetooth', never a bare 'bt'.

@@ -8,6 +8,19 @@ published data schema is versioned separately (see `schema_version` in every
 
 ## [Unreleased]
 
+### Fixed
+- Water level no longer misreports families whose packages bundle other
+  components: the INF-DriverVer override is now confined to the listing's
+  major-version line (an ASUS AMD-chipset zip ships NPU INFs numbered 32.x —
+  previously the global max leaked that into the AMD Chipset water level).
+- AMD NPU/Graphics/RAID rules now precede AMD Chipset, so ASUS's
+  `chipset/amd/npu` URL path assigns to NPU instead of Chipset.
+
+### Known limitation
+- Realtek LAN conflates distinct silicon (RTL8111/8125/8126) under
+  vendor-specific version schemes (ASUS `1168.x`/`1126.x`/`1125.x`); its
+  cross-vendor water level is not yet reconciled (spec §6.3).
+
 ### Added
 - `winidx deploy`: sync `public/` to Cloudflare R2 via rclone, writing an
   immutable dated snapshot (`/v1/{date}/`) and updating `/v1/latest/` with
