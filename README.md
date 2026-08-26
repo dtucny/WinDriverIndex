@@ -49,7 +49,7 @@ Then, with credentials in the environment (never commit these):
 
 ```sh
 export R2_ACCOUNT_ID=... R2_ACCESS_KEY_ID=... R2_SECRET_ACCESS_KEY=...
-export R2_BUCKET=windriverindex R2_PUBLIC_BASE=https://index.example.com
+export R2_BUCKET=windriverindex R2_PUBLIC_BASE=https://windriverindex.tucny.com
 uv run winidx deploy --dry-run   # preview
 uv run winidx deploy             # publish
 ```
@@ -57,6 +57,11 @@ uv run winidx deploy             # publish
 Each run writes an immutable dated snapshot (`/v1/{date}/`, cached forever)
 and updates `/v1/latest/` (short TTL). Consumers pin a dated path for
 stability or follow `latest` for freshness.
+
+**Canonical base URL:** `https://windriverindex.tucny.com` — e.g. the current
+newest-version table is at
+`https://windriverindex.tucny.com/v1/latest/water-level.json` and a point
+lookup at `https://windriverindex.tucny.com/v1/latest/by-hwid/{hwid}.json`.
 
 All four vendor crawlers are implemented. ASRock needs browser-harvested
 Incapsula cookies in `data/asrock_cookies.txt` (see doc/findings.md);
