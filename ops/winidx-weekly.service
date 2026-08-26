@@ -20,3 +20,8 @@ ExecStart=%h/.local/bin/uv run winidx fetch
 ExecStart=%h/.local/bin/uv run winidx extract
 ExecStart=%h/.local/bin/uv run winidx assign
 ExecStart=%h/.local/bin/uv run winidx publish
+# Optional R2 publish. Put R2_* credentials in the (gitignored) env file; the
+# leading '-' on both lines makes the step optional — a box without creds
+# still completes crawl→publish.
+EnvironmentFile=-%h/.config/winidx/r2.env
+ExecStart=-%h/.local/bin/uv run winidx deploy

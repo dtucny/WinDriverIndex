@@ -8,6 +8,13 @@ published data schema is versioned separately (see `schema_version` in every
 
 ## [Unreleased]
 
+### Added
+- `winidx deploy`: sync `public/` to Cloudflare R2 via rclone, writing an
+  immutable dated snapshot (`/v1/{date}/`) and updating `/v1/latest/` with
+  the right Cache-Control and content types. Credentials are read only from
+  the environment; `--print-cors` emits the bucket CORS policy. Wired into the
+  weekly `ops/` unit as an optional final step.
+
 ## [0.1.0] — 2026-08-26
 
 First working end-to-end pipeline across all four in-scope vendors.

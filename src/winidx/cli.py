@@ -10,7 +10,7 @@ import argparse
 import datetime as dt
 import sys
 
-from . import config, db, extract, families, fetch, publish
+from . import config, db, deploy, extract, families, fetch, publish
 from .http import PoliteClient
 from .vendors import asrock, asus, gigabyte, msi
 
@@ -68,6 +68,14 @@ def _int_stats(stats: dict) -> int:
     return 0 if not stats.get("failed") else 1
 
 
+def _cmd_deploy(args) -> int:
+    if args.print_cors:
+        print(deploy.CORS_POLICY, end="")
+        return 0
+    deploy.run(dry_run=args.dry_run, date=args.date)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="winidx", description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -98,6 +106,13 @@ def main(argv: list[str] | None = None) -> int:
 
     p = sub.add_parser("publish", help="water level, lag, static JSON output (§7–8)")
     p.set_defaults(func=lambda a: _int_stats(publish.run(db.connect())))
+
+    p = sub.add_parser("deploy", help="sync public/ to Cloudflare R2 (§8)")
+    p.add_argument("--dry-run", action="store_true", help="show what would upload")
+    p.add_argument("--date", help="snapshot date path (default: today)")
+    p.add_argument("--print-cors", action="store_true",
+                   help="print the bucket CORS policy and exit")
+    p.set_defaults(func=_cmd_deploy)
 
     args = parser.parse_args(argv)
     return args.func(args)
