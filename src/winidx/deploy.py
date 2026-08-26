@@ -98,6 +98,11 @@ def run(*, dry_run: bool = False, date: str | None = None, log=print) -> dict:
     # latest: sync (mirror, deleting removed families) with short TTL.
     _run(["sync", str(src), f"r2:{bucket}/v1/latest",
           "--header-upload", REVALIDATE, *common], env, dry_run, log)
+    # Root-level pages (index.html, the human-readable landing page) → bucket
+    # root. max-depth 1 keeps this to top-level files, not the v1/ tree.
+    _run(["copy", str(config.PUBLIC_DIR), f"r2:{bucket}",
+          "--max-depth", "1", "--header-upload", REVALIDATE, *common],
+         env, dry_run, log)
 
     base = os.environ.get("R2_PUBLIC_BASE", "").rstrip("/")
     if base:

@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WinDriverIndex — motherboard driver currency</title>
+<meta name="description" content="How far behind the newest available driver each motherboard vendor's board listings sit, across MSI, Gigabyte, ASRock, and ASUS.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🩺</text></svg>">
+<style>
+  :root {
+    color-scheme: light;
+    --plane:#f4f4f1; --surface:#fcfcfb; --ink:#0b0b0b; --ink2:#52514e; --muted:#898781;
+    --grid:#e6e5de; --ring:rgba(11,11,11,.10); --accent:#256abf; --accent-soft:#cde2fb;
+    --good:#0ca30c; --warn:#c98500; --crit:#d03b3b;
+    --h1:#b7d3f6; --h2:#86b6ef; --h3:#5598e7; --h4:#256abf; --h5:#104281;
+    --shadow:0 1px 2px rgba(11,11,11,.05),0 4px 16px rgba(11,11,11,.05);
+  }
+  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+    color-scheme: dark;
+    --plane:#0d0d0d; --surface:#1a1a19; --ink:#fff; --ink2:#c3c2b7; --muted:#898781;
+    --grid:#2c2c2a; --ring:rgba(255,255,255,.12); --accent:#3987e5; --accent-soft:#173257;
+    --good:#0ca30c; --warn:#eda100; --crit:#e66767;
+    --h1:#173257; --h2:#1c5cab; --h3:#256abf; --h4:#3987e5; --h5:#6da7ec;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.35);
+  }}
+  :root[data-theme="dark"]{
+    color-scheme: dark;
+    --plane:#0d0d0d; --surface:#1a1a19; --ink:#fff; --ink2:#c3c2b7; --muted:#898781;
+    --grid:#2c2c2a; --ring:rgba(255,255,255,.12); --accent:#3987e5; --accent-soft:#173257;
+    --good:#0ca30c; --warn:#eda100; --crit:#e66767;
+    --h1:#173257; --h2:#1c5cab; --h3:#256abf; --h4:#3987e5; --h5:#6da7ec;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.35);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--plane);color:var(--ink);
+    font-family:system-ui,-apple-system,"Segoe UI",sans-serif;line-height:1.5;
+    -webkit-font-smoothing:antialiased;}
+  a{color:var(--accent);text-decoration:none} a:hover{text-decoration:underline}
+  .wrap{max-width:960px;margin:0 auto;padding:clamp(20px,4vw,44px) clamp(16px,4vw,32px) 64px}
+  header .top{display:flex;justify-content:space-between;align-items:baseline;gap:16px;flex-wrap:wrap}
+  h1{font-size:clamp(1.7rem,4vw,2.5rem);margin:0;letter-spacing:-.02em}
+  h1 .dot{color:var(--accent)}
+  .sub{color:var(--ink2);font-size:1.05rem;margin:.4rem 0 0;max-width:60ch}
+  .meta{color:var(--muted);font-size:.85rem;margin-top:.6rem}
+  .meta code{font-size:.85em}
+  h2{font-size:1.25rem;letter-spacing:-.01em;margin:2.6rem 0 .3rem}
+  h2 + .note{color:var(--ink2);margin:.1rem 0 1.1rem;max-width:64ch}
+  section{margin-top:.5rem}
+  .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-top:1.4rem}
+  .tile{background:var(--surface);border:1px solid var(--ring);border-radius:12px;padding:14px 16px;box-shadow:var(--shadow)}
+  .tile .n{font-size:1.7rem;font-weight:650;letter-spacing:-.02em}
+  .tile .l{color:var(--ink2);font-size:.82rem;margin-top:2px}
+  .card{background:var(--surface);border:1px solid var(--ring);border-radius:14px;box-shadow:var(--shadow);overflow:hidden}
+  .scroll{overflow-x:auto}
+  table{border-collapse:collapse;width:100%;font-size:.92rem}
+  th,td{text-align:left;padding:11px 14px;border-bottom:1px solid var(--grid);white-space:nowrap}
+  thead th{color:var(--muted);font-weight:600;font-size:.78rem;text-transform:uppercase;letter-spacing:.04em}
+  tbody tr:last-child td{border-bottom:none}
+  .num{text-align:right;font-variant-numeric:tabular-nums}
+  .vend{font-weight:600}
+  /* scorecard */
+  .rank{display:grid;grid-template-columns:auto 1fr;gap:14px 18px;align-items:center;
+    padding:16px 18px;border-bottom:1px solid var(--grid)}
+  .rank:last-child{border-bottom:none}
+  .rank .who{display:flex;align-items:baseline;gap:10px}
+  .rank .who b{font-size:1.1rem} .rank .who .pos{color:var(--muted);font-size:.8rem;font-variant-numeric:tabular-nums}
+  .bars{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;align-items:center;font-size:.85rem}
+  .bars .k{color:var(--ink2)}
+  .track{position:relative;height:14px;background:var(--grid);border-radius:7px}
+  .fill{position:absolute;top:0;left:0;height:100%;border-radius:7px;background:var(--accent)}
+  .fill.warn{background:var(--warn)} .fill.crit{background:var(--crit)} .fill.good{background:var(--good)}
+  .yr{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--muted);opacity:.6}
+  .bval{font-variant-numeric:tabular-nums;color:var(--ink2);min-width:3.5em}
+  .big{font-size:1.5rem;font-weight:650;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+  .big.warn{color:var(--warn)} .big.crit{color:var(--crit)}
+  /* heatmap */
+  .heat{border-collapse:separate;border-spacing:4px}
+  .heat th{padding:6px 8px;font-size:.78rem}
+  .heat td{padding:0;white-space:nowrap}
+  .cell{border-radius:8px;padding:11px 8px;text-align:center;font-variant-numeric:tabular-nums;
+    font-size:.9rem;min-width:74px}
+  .cell small{display:block;font-size:.68rem;opacity:.7;font-weight:400}
+  /* heat steps: background + text chosen for contrast in each mode
+     (the ramp inverts between modes, so text colour flips too). */
+  .c1{background:var(--h1)} .c2{background:var(--h2)} .c3{background:var(--h3)}
+  .c4{background:var(--h4)} .c5{background:var(--h5)}
+  .c1,.c2,.c3{color:#0f2136} .c4,.c5{color:#fff}
+  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+    --c-ink-lo:#eaf1fb; --c-ink-hi:#0f2136; }
+    :root:not([data-theme="light"]) .c1,:root:not([data-theme="light"]) .c2,
+    :root:not([data-theme="light"]) .c3{color:var(--c-ink-lo)}
+    :root:not([data-theme="light"]) .c4,:root:not([data-theme="light"]) .c5{color:var(--c-ink-hi)}
+  }
+  :root[data-theme="dark"] .c1,:root[data-theme="dark"] .c2,:root[data-theme="dark"] .c3{color:#eaf1fb}
+  :root[data-theme="dark"] .c4,:root[data-theme="dark"] .c5{color:#0f2136}
+  .legend{display:flex;gap:6px;align-items:center;color:var(--muted);font-size:.8rem;margin-top:10px;flex-wrap:wrap}
+  .legend i{width:16px;height:12px;border-radius:3px;display:inline-block}
+  .foot{color:var(--ink2);font-size:.9rem;margin-top:2.8rem;border-top:1px solid var(--grid);padding-top:1.4rem}
+  .foot b{color:var(--ink)}
+  .links{display:flex;gap:10px;flex-wrap:wrap;margin-top:1.3rem}
+  .btn{display:inline-flex;align-items:center;gap:7px;background:var(--surface);border:1px solid var(--ring);
+    border-radius:10px;padding:9px 14px;font-size:.9rem;font-weight:500;box-shadow:var(--shadow)}
+  .btn:hover{text-decoration:none;border-color:var(--accent)}
+  .endpoints{font-size:.9rem}
+  .endpoints td{padding:9px 14px}
+  .endpoints code{background:var(--plane);border:1px solid var(--grid);border-radius:6px;padding:1px 6px;font-size:.86em}
+  .pill{font-size:.72rem;padding:2px 8px;border-radius:20px;border:1px solid var(--ring);color:var(--ink2)}
+  #themeToggle{background:none;border:1px solid var(--ring);color:var(--ink2);border-radius:8px;
+    padding:5px 10px;font:inherit;font-size:.82rem;cursor:pointer}
+  #themeToggle:hover{border-color:var(--accent);color:var(--ink)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div class="top">
+    <h1>WinDriver<span class="dot">Index</span></h1>
+    <button id="themeToggle" type="button" aria-label="Toggle colour theme">◐ theme</button>
+  </div>
+  <p class="sub">A cross-vendor index of motherboard driver versions — and the
+  <b>vendor-lag metric</b>: how far behind the newest available driver each
+  vendor's board listings actually sit.</p>
+  <p class="meta">Data generated <strong>2026-08-26</strong> · Windows&nbsp;11 x64 ·
+  AM4 / AM5 / Intel 600–800 desktop boards ·
+  <a href="https://github.com/dtucny/WinDriverIndex">source &amp; method on GitHub ↗</a></p>
+</header>
+
+<section class="tiles">
+  <div class="tile"><div class="n">1,124</div><div class="l">boards indexed</div></div>
+  <div class="tile"><div class="n">4</div><div class="l">vendors</div></div>
+  <div class="tile"><div class="n">49</div><div class="l">driver families</div></div>
+  <div class="tile"><div class="n">1,534</div><div class="l">driver artefacts</div></div>
+</section>
+
+<h2>How current are each vendor's listings?</h2>
+<p class="note">Ranked best to worst by median lag — the typical gap between a
+board's listed driver and the newest version any vendor ships for that silicon.
+The damning number is the share of a vendor's boards <b>more than a year behind
+on at least one driver family</b>.</p>
+<div class="card">
+  <!-- MSI -->
+  <div class="rank">
+    <div class="who"><b>MSI</b><span class="pos">#1 · 177 boards</span></div>
+    <div class="bars">
+      <span class="k">Median lag</span>
+      <div class="track"><div class="fill good" style="width:21%"></div><div class="yr" style="left:100%"></div></div>
+      <span class="bval">77 d</span>
+      <span class="k">Boards &gt;1yr behind</span>
+      <div class="track"><div class="fill warn" style="width:40%"></div></div>
+      <span class="bval">40%</span>
+    </div>
+  </div>
+  <!-- ASUS -->
+  <div class="rank">
+    <div class="who"><b>ASUS</b><span class="pos">#2 · 269 boards</span></div>
+    <div class="bars">
+      <span class="k">Median lag</span>
+      <div class="track"><div class="fill" style="width:27%"></div><div class="yr" style="left:100%"></div></div>
+      <span class="bval">99 d</span>
+      <span class="k">Boards &gt;1yr behind</span>
+      <div class="track"><div class="fill crit" style="width:80%"></div></div>
+      <span class="bval">80%</span>
+    </div>
+  </div>
+  <!-- Gigabyte -->
+  <div class="rank">
+    <div class="who"><b>Gigabyte</b><span class="pos">#3 · 313 boards</span></div>
+    <div class="bars">
+      <span class="k">Median lag</span>
+      <div class="track"><div class="fill warn" style="width:53%"></div><div class="yr" style="left:100%"></div></div>
+      <span class="bval">195 d</span>
+      <span class="k">Boards &gt;1yr behind</span>
+      <div class="track"><div class="fill crit" style="width:78%"></div></div>
+      <span class="bval">78%</span>
+    </div>
+  </div>
+  <!-- ASRock -->
+  <div class="rank">
+    <div class="who"><b>ASRock</b><span class="pos">#4 · 365 boards</span></div>
+    <div class="bars">
+      <span class="k">Median lag</span>
+      <div class="track"><div class="fill crit" style="width:57%"></div><div class="yr" style="left:100%"></div></div>
+      <span class="bval">208 d</span>
+      <span class="k">Boards &gt;1yr behind</span>
+      <div class="track"><div class="fill crit" style="width:80%"></div></div>
+      <span class="bval">80%</span>
+    </div>
+  </div>
+</div>
+<div class="legend"><span>Median-lag track spans 0 → <b>1 year</b> (marker at right).</span></div>
+
+<h2>Full metric</h2>
+<div class="card scroll">
+<table>
+  <thead><tr><th>Vendor</th><th class="num">Median lag</th><th class="num">p90 lag</th>
+    <th class="num">Worst</th><th class="num">Boards &gt;1yr behind</th></tr></thead>
+  <tbody>
+    <tr><td class="vend">MSI</td><td class="num">77 d</td><td class="num">340 d</td><td class="num">5.1 yr</td><td class="num">71 / 177 &nbsp;(40%)</td></tr>
+    <tr><td class="vend">ASUS</td><td class="num">99 d</td><td class="num">704 d</td><td class="num">4.5 yr</td><td class="num">215 / 269 &nbsp;(80%)</td></tr>
+    <tr><td class="vend">Gigabyte</td><td class="num">195 d</td><td class="num">1366 d</td><td class="num">4.5 yr</td><td class="num">243 / 313 &nbsp;(78%)</td></tr>
+    <tr><td class="vend">ASRock</td><td class="num">208 d</td><td class="num">1353 d</td><td class="num">8.5 yr</td><td class="num">291 / 365 &nbsp;(80%)</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2>Do vendors maintain their back catalogue?</h2>
+<p class="note">Median worst-case lag per platform. AM4 launched in 2017, AM5 and
+Intel 800 are current. Darker = further behind: the tell-tale pattern is a
+vendor keeping the current generation fresh while old-but-still-sold boards
+drift for years.</p>
+<div class="card scroll" style="padding:14px">
+<table class="heat">
+  <thead><tr><th></th><th>AM4<br><small style="font-weight:400">2017</small></th>
+    <th>AM5<br><small style="font-weight:400">2022</small></th>
+    <th>Intel 600/700<br><small style="font-weight:400">2021</small></th>
+    <th>Intel 800<br><small style="font-weight:400">2024</small></th></tr></thead>
+  <tbody>
+    <tr><th style="text-align:right">MSI</th>
+      <td><div class="cell c3">621<small>25 bd</small></div></td>
+      <td><div class="cell c1">220<small>58 bd</small></div></td>
+      <td><div class="cell c2">340<small>67 bd</small></div></td>
+      <td><div class="cell c1">143<small>27 bd</small></div></td></tr>
+    <tr><th style="text-align:right">ASUS</th>
+      <td><div class="cell c4">909<small>48 bd</small></div></td>
+      <td><div class="cell c2">282<small>87 bd</small></div></td>
+      <td><div class="cell c4">1078<small>108 bd</small></div></td>
+      <td><div class="cell c2">455<small>26 bd</small></div></td></tr>
+    <tr><th style="text-align:right">Gigabyte</th>
+      <td><div class="cell c5">1731<small>71 bd</small></div></td>
+      <td><div class="cell c3">519<small>95 bd</small></div></td>
+      <td><div class="cell c4">1057<small>114 bd</small></div></td>
+      <td><div class="cell c2">273<small>33 bd</small></div></td></tr>
+    <tr><th style="text-align:right">ASRock</th>
+      <td><div class="cell c5">1748<small>106 bd</small></div></td>
+      <td><div class="cell c2">482<small>95 bd</small></div></td>
+      <td><div class="cell c4">1345<small>109 bd</small></div></td>
+      <td><div class="cell c2">454<small>53 bd</small></div></td></tr>
+  </tbody>
+</table>
+<div class="legend">days behind:
+  <i style="background:var(--h1)"></i><span>&lt;250</span>
+  <i style="background:var(--h2)"></i><span>250–500</span>
+  <i style="background:var(--h3)"></i><span>500–900</span>
+  <i style="background:var(--h4)"></i><span>900–1400</span>
+  <i style="background:var(--h5)"></i><span>1400+</span>
+</div>
+</div>
+
+<h2>Most neglected boards</h2>
+<p class="note">Boards furthest behind the water line on any single driver family —
+overwhelmingly AM4, still sold and still in service.</p>
+<div class="card scroll">
+<table>
+  <thead><tr><th>Board</th><th>Vendor</th><th>Socket</th>
+    <th class="num">Worst lag</th><th class="num">Families behind</th></tr></thead>
+  <tbody>
+    <tr><td>Fatal1ty AB350 Gaming K4</td><td>ASRock</td><td>AM4</td><td class="num">8.5 yr</td><td class="num">2 / 4</td></tr>
+    <tr><td>X470 Taichi Ultimate</td><td>ASRock</td><td>AM4</td><td class="num">8.1 yr</td><td class="num">4 / 7</td></tr>
+    <tr><td>X470 Master SLI</td><td>ASRock</td><td>AM4</td><td class="num">8.1 yr</td><td class="num">4 / 6</td></tr>
+    <tr><td>Fatal1ty X370 Gaming-ITX/ac</td><td>ASRock</td><td>AM4</td><td class="num">7.6 yr</td><td class="num">4 / 6</td></tr>
+    <tr><td>Fatal1ty AB350 Gaming-ITX/ac</td><td>ASRock</td><td>AM4</td><td class="num">7.5 yr</td><td class="num">4 / 6</td></tr>
+    <tr><td>X570 AQUA</td><td>ASRock</td><td>AM4</td><td class="num">6.7 yr</td><td class="num">5 / 8</td></tr>
+    <tr><td>B450M/ac</td><td>ASRock</td><td>AM4</td><td class="num">6.7 yr</td><td class="num">3 / 5</td></tr>
+    <tr><td>X570 Phantom Gaming-ITX/TB3</td><td>ASRock</td><td>AM4</td><td class="num">5.9 yr</td><td class="num">4 / 7</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2>Use the data</h2>
+<p class="note">Everything here is static JSON, CORS-enabled, versioned, and free
+to mirror. Point a driver-checker at <code>by-hwid</code> and report anything
+below the water line.</p>
+<div class="card scroll">
+<table class="endpoints">
+  <tbody>
+    <tr><td><a href="/v1/latest/water-level.json"><code>/v1/latest/water-level.json</code></a></td><td>Newest known version per driver family</td></tr>
+    <tr><td><a href="/v1/latest/vendor-lag.json"><code>/v1/latest/vendor-lag.json</code></a></td><td>The vendor-lag metric above</td></tr>
+    <tr><td><a href="/v1/latest/families.json"><code>/v1/latest/families.json</code></a></td><td>Family table with HWID sets</td></tr>
+    <tr><td><a href="/v1/latest/boards.json"><code>/v1/latest/boards.json</code></a></td><td>Board catalogue with chipset / socket</td></tr>
+    <tr><td><code>/v1/latest/by-hwid/{hwid}.json</code></td><td>Point lookup by hardware ID</td></tr>
+  </tbody>
+</table>
+</div>
+<div class="links">
+  <a class="btn" href="https://github.com/dtucny/WinDriverIndex">⟠ GitHub repository</a>
+  <a class="btn" href="https://github.com/dtucny/WinDriverIndex/blob/main/doc/spec.md">📄 Design spec</a>
+  <a class="btn" href="https://github.com/dtucny/WinDriverIndex/blob/main/doc/findings.md">🔎 Findings</a>
+  <a class="btn" href="/v1/latest/water-level.json">{ } Raw JSON</a>
+</div>
+
+<p class="foot">
+  <b>What “latest” means.</b> The newest version any vendor has <b>published</b>,
+  not a judgement that it is good — a vendor may legitimately withhold a driver
+  that regressed. That caveat does not excuse a board sitting years behind on a
+  leaking driver.<br><br>
+  <b>Caveats.</b> Lag is measured against what vendors list, on Windows&nbsp;11 x64
+  only. Cross-vendor version reconciliation is imperfect where vendors use
+  incompatible numbering schemes for the same silicon (e.g. Realtek LAN), so a
+  few individual family water-levels are approximate; the aggregate vendor
+  metrics are robust to this. Method, sources, and every known wrinkle are in the
+  <a href="https://github.com/dtucny/WinDriverIndex/blob/main/doc/findings.md">findings doc</a>.<br><br>
+  <span class="pill">no affiliation with MSI, Gigabyte, ASRock, or ASUS</span>
+</p>
+</div>
+
+<script>
+  (function(){
+    var root=document.documentElement, btn=document.getElementById('themeToggle');
+    try{var s=localStorage.getItem('wdi-theme'); if(s)root.setAttribute('data-theme',s);}catch(e){}
+    btn.addEventListener('click',function(){
+      var cur=root.getAttribute('data-theme');
+      var next=cur==='dark'?'light':cur==='light'?'dark':
+        (matchMedia('(prefers-color-scheme: dark)').matches?'light':'dark');
+      root.setAttribute('data-theme',next);
+      try{localStorage.setItem('wdi-theme',next);}catch(e){}
+    });
+  })();
+</script>
+</body>
+</html>

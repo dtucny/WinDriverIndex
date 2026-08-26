@@ -4,4 +4,8 @@ __pycache__/
 *.pyc
 .pytest_cache/
 dist/
-public/
+
+# Generated JSON output is not tracked (rebuildable via `winidx publish`),
+# but the hand-authored landing page is source — keep just that file.
+public/*
+!public/index.html
