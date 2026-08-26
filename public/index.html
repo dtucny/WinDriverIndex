@@ -64,7 +64,7 @@
   .rank:last-child{border-bottom:none}
   .rank .who{display:flex;align-items:baseline;gap:10px}
   .rank .who b{font-size:1.1rem} .rank .who .pos{color:var(--muted);font-size:.8rem;font-variant-numeric:tabular-nums}
-  .bars{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;align-items:center;font-size:.85rem}
+  .bars{display:grid;grid-template-columns:minmax(110px,auto) 1fr auto;gap:8px 12px;align-items:center;font-size:.85rem}
   .bars .k{color:var(--ink2)}
   .track{position:relative;height:14px;background:var(--grid);border-radius:7px}
   .fill{position:absolute;top:0;left:0;height:100%;border-radius:7px;background:var(--accent)}
@@ -171,6 +171,9 @@ on at least one driver family</b>.</p>
       <span class="k">Boards &gt;1yr behind</span>
       <div class="track"><div class="fill warn" style="width:40%"></div></div>
       <span class="bval">40%</span>
+      <span class="k">Silent ≥2 yr</span>
+      <div class="track"><div class="fill good" style="width:0%"></div></div>
+      <span class="bval">0%</span>
     </div>
   </div>
   <!-- ASUS -->
@@ -183,6 +186,9 @@ on at least one driver family</b>.</p>
       <span class="k">Boards &gt;1yr behind</span>
       <div class="track"><div class="fill crit" style="width:80%"></div></div>
       <span class="bval">80%</span>
+      <span class="k">Silent ≥2 yr</span>
+      <div class="track"><div class="fill good" style="width:0%"></div></div>
+      <span class="bval">0%</span>
     </div>
   </div>
   <!-- Gigabyte -->
@@ -195,6 +201,9 @@ on at least one driver family</b>.</p>
       <span class="k">Boards &gt;1yr behind</span>
       <div class="track"><div class="fill crit" style="width:78%"></div></div>
       <span class="bval">78%</span>
+      <span class="k">Silent ≥2 yr</span>
+      <div class="track"><div class="fill warn" style="width:4%"></div></div>
+      <span class="bval">4%</span>
     </div>
   </div>
   <!-- ASRock -->
@@ -207,6 +216,9 @@ on at least one driver family</b>.</p>
       <span class="k">Boards &gt;1yr behind</span>
       <div class="track"><div class="fill crit" style="width:80%"></div></div>
       <span class="bval">80%</span>
+      <span class="k">Silent ≥2 yr</span>
+      <div class="track"><div class="fill crit" style="width:18%"></div></div>
+      <span class="bval">18%</span>
     </div>
   </div>
 </div>
@@ -216,15 +228,23 @@ on at least one driver family</b>.</p>
 <div class="card scroll">
 <table>
   <thead><tr><th>Vendor</th><th class="num">Median lag</th><th class="num">p90 lag</th>
-    <th class="num">Worst</th><th class="num">Boards &gt;1yr behind</th></tr></thead>
+    <th class="num">Worst</th><th class="num">Boards &gt;1yr behind</th><th class="num">Silent ≥2yr</th></tr></thead>
   <tbody>
-    <tr><td class="vend">MSI</td><td class="num">77 d</td><td class="num">340 d</td><td class="num">5.1 yr</td><td class="num">71 / 177 &nbsp;(40%)</td></tr>
-    <tr><td class="vend">ASUS</td><td class="num">99 d</td><td class="num">704 d</td><td class="num">4.5 yr</td><td class="num">215 / 269 &nbsp;(80%)</td></tr>
-    <tr><td class="vend">Gigabyte</td><td class="num">195 d</td><td class="num">1366 d</td><td class="num">4.5 yr</td><td class="num">243 / 313 &nbsp;(78%)</td></tr>
-    <tr><td class="vend">ASRock</td><td class="num">208 d</td><td class="num">1353 d</td><td class="num">8.5 yr</td><td class="num">291 / 365 &nbsp;(80%)</td></tr>
+    <tr><td class="vend">MSI</td><td class="num">77 d</td><td class="num">340 d</td><td class="num">5.1 yr</td><td class="num">71 / 177 &nbsp;(40%)</td><td class="num">0</td></tr>
+    <tr><td class="vend">ASUS</td><td class="num">99 d</td><td class="num">704 d</td><td class="num">4.5 yr</td><td class="num">215 / 269 &nbsp;(80%)</td><td class="num">0</td></tr>
+    <tr><td class="vend">Gigabyte</td><td class="num">195 d</td><td class="num">1366 d</td><td class="num">4.5 yr</td><td class="num">243 / 313 &nbsp;(78%)</td><td class="num">13 (4%)</td></tr>
+    <tr><td class="vend">ASRock</td><td class="num">208 d</td><td class="num">1353 d</td><td class="num">8.5 yr</td><td class="num">291 / 365 &nbsp;(80%)</td><td class="num">65 (18%)</td></tr>
   </tbody>
 </table>
 </div>
+<p class="note" style="margin-top:12px"><b>Two-tier support, quantified.</b>
+“Silent ≥2 yr” counts boards whose listing has had <b>no driver update of any
+kind in over two years</b> — not slow support, none. MSI and ASUS maintain
+their entire catalogues; ASRock ships the most variants per chipset (~15 SKUs)
+and has left 65 boards — 18% of its catalogue — fully silent. Notably these are
+not its oldest boards: they are still-sold LGA1700 B760/Z790 models untouched
+since early 2024, while its AM4 boards keep receiving occasional chipset
+refreshes.</p>
 
 <h2>Do vendors maintain their back catalogue?</h2>
 <p class="note">Median worst-case lag per platform. AM4 launched in 2017, AM5 and
