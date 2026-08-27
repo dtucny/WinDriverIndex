@@ -98,6 +98,20 @@ published data schema is versioned separately (see `schema_version` in every
   WDDM 32.x vs AMD's marketing 26.x) the date-newer one wins. Silicon-page
   date extraction widened (ISO + US formats).
 
+- **Dell (business lines) in the index** — the whole vendor from one file:
+  Dell Command Update's CatalogPC.cab (chrome-TLS) yields 379 in-era systems
+  (Latitude/Precision/OptiPlex/XPS/Dell Pro) and ~2,900 packages with real
+  vendorVersions, MD5s, categories and PCI ids; one request per refresh.
+  Era gating was an adventure: Dell restamps 2012 packages with fresh
+  catalog dates and classes TPM firmware as BIOS, so the gate is numeric
+  System-BIOS scheme AND a Win11-era System-BIOS date, plus an 18-name
+  denylist of extended-support 6th/7th-gen units. Known limitation: 'XPS
+  9350' merges Dell's 2015 and 2024 uses of the name. Consumer lines
+  (Inspiron/Alienware/G) need a separate enumeration source (as with
+  Legion). Also: Gigabyte boards gained support-page links (703 backfilled);
+  the picker shows "N of M — keep typing" when results are capped; publish
+  clears stale by-board files.
+
 ### Fixed
 - Water-level integrity hardening: a majority-version-line guard stops
   vendor mislabels from topping a family with a foreign scheme (ASUS ships

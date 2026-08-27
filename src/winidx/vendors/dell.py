@@ -1,0 +1,175 @@
+"""Dell crawler (roadmap v0.3) — the whole vendor from one file.
+
+Dell Command Update's public catalog (downloads.dell.com/catalog/
+CatalogPC.cab, chrome-TLS required, ~3 MB cab holding one UTF-16 XML) lists
+every supported business system (Latitude/Precision/OptiPlex/XPS/Dell Pro —
+496 systems as of 2026-08) and ~4,100 packages, each with the real
+vendorVersion, a month-name releaseDate, MD5, download path, Category,
+ComponentType, PCI device ids, and the systems it applies to. One download
+per run; no per-model requests at all.
+
+Consumer lines (Inspiron/Alienware/G) are not in this catalog — Dell Update
+manages those separately; enumeration source TBD (the Legion story again).
+
+Systems sharing a display name (config-variant systemIDs) are merged into
+one board keyed by the name slug.
+"""
+
+from __future__ import annotations
+
+import datetime as dt
+import re
+import sqlite3
+
+from .. import db, versions
+
+VENDOR = "dell"
+CATALOG = "https://downloads.dell.com/catalog/CatalogPC.cab"
+DL_BASE = "https://downloads.dell.com/"
+BROWSER_HEADERS = True   # downloads.dell.com 403s honest UAs
+
+_COMPONENT = re.compile(r"<SoftwareComponent (.*?)</SoftwareComponent>", re.S)
+_ATTR = re.compile(r'(\w+)="([^"]*)"')
+_NAME = re.compile(r"<Name>\s*<Display[^>]*><!\[CDATA\[(.*?)\]\]>", re.S)
+_CTYPE = re.compile(r'<ComponentType value="(\w+)"')
+_CAT = re.compile(r"<Category[^>]*>\s*<Display[^>]*><!\[CDATA\[(.*?)\]\]>", re.S)
+_MODEL = re.compile(r'<Brand key="\d+"[^>]*>\s*<Display[^>]*><!\[CDATA\[([^\]]+)\]\]></Display>(.*?)</Brand>', re.S)
+_SYS = re.compile(r'<Model systemID="([^"]+)"[^>]*>\s*<Display[^>]*><!\[CDATA\[([^\]]+)\]\]>')
+
+KIND = {"DRVR": "driver", "BIOS": "bios", "FRMW": "firmware"}
+
+# Pre-Win11-floor systems (2015-17, 6th/7th-gen) that survive the BIOS-scheme
+# +date gate because Dell genuinely BIOS-serviced them into the Win11 era
+# (rugged/extended-support lifecycles). Name-listed after data review.
+# 'XPS Notebook 9350' is deliberately NOT here: Dell reused the 9350 name in
+# 2024, and the catalog merges both eras — kept, imperfect, pending
+# sid-level disambiguation via the per-model CatalogIndexPC.
+DENY_NAMES = {
+    "Latitude 3379", "Latitude 5175/5179", "Latitude 5414", "Latitude 7214",
+    "Latitude 7275", "Latitude 7414", "Optiplex 3046", "Optiplex 3240 AIO",
+    "Optiplex 5260 AIO", "Optiplex OptiPlex 5055 A Series",
+    "Optiplex OptiPlex 5055 Ryzen APU", "Precision 5510", "Precision 5520",
+    "Precision 5720 AIO", "Precision T3420", "Precision T3620",
+    "XPS Notebook 9250", "XPS Notebook 9550",
+}
+LAPTOP_BRANDS = ("latitude", "xps", "laptop", "tablet", "rugged", "edu")
+
+
+def _date(text: str) -> str | None:
+    try:
+        return dt.datetime.strptime(text.strip(), "%B %d, %Y").date().isoformat()
+    except ValueError:
+        return None
+
+
+def crawl(conn: sqlite3.Connection, client, run_date: str,
+          *, limit: int | None = None, log=print) -> dict:
+    raw = client.get(CATALOG, snapshot="CatalogPC.cab", timeout=300).content
+    # cab -> single UTF-16 XML; 7z-free: the cab holds one MSZIP-compressed
+    # file, but shelling to 7zz is simpler and already a project dependency
+    import subprocess, tempfile, pathlib, shutil
+    seven = shutil.which("7zz") or shutil.which("7z") or "7zz"
+    with tempfile.TemporaryDirectory() as td:
+        cab = pathlib.Path(td, "c.cab")
+        cab.write_bytes(raw)
+        subprocess.run([seven, "x", "-y", f"-o{td}", str(cab)],
+                       capture_output=True, check=True)
+        xml_path = next(pathlib.Path(td).glob("*.xml"))
+        text = xml_path.read_bytes().decode("utf-16", errors="replace")
+
+    # Era gate (Win11-only charter). Catalog DATES are useless for this:
+    # Dell republishes 2012-era packages with fresh releaseDates (an E5420
+    # BIOS 'A12' stamped 2021-07-27, a 2012 RST driver stamped 2026). The
+    # honest signal is the BIOS VERSION SCHEME: legacy systems use letter
+    # versions (A12), everything ~Skylake-onward uses numeric (1.x). Gating
+    # per systemID also untangles Dell's name reuse (OptiPlex 7010 exists as
+    # both a 2012 and a 2023 machine — only the numeric-BIOS ids survive).
+    # ...and only the actual "System BIOS" package counts: legacy systems
+    # carry TPM/EC firmware classed as BIOS-type with numeric versions,
+    # which would whitelist a 2011 Latitude.
+    modern_sids: set[str] = set()
+    for block in _COMPONENT.findall(text):
+        ct = _CTYPE.search(block)
+        if not ct or ct.group(1) != "BIOS":
+            continue
+        nm = _NAME.search(block)
+        if not nm or "system bios" not in nm.group(1).lower():
+            continue
+        head = block[:block.find(">")]
+        attrs = dict(_ATTR.findall(head))
+        d = _date(attrs.get("releaseDate", "")) or (attrs.get("dateTime") or "")[:10]
+        # numeric scheme AND a recent System BIOS: 2010-era desktops already
+        # used numeric versions (Precision T1500 '2.4.0', 2012), and Dell
+        # restamps old packages with fresh dates — each check catches the
+        # other's blind spot.
+        if re.match(r"\d+\.", attrs.get("vendorVersion") or "") \
+                and (d or "") >= "2021-07":
+            for sid, _n in _SYS.findall(block):
+                modern_sids.add(sid)
+
+    # board rows: merge config-variant systemIDs under one display name
+    sys_to_board: dict[str, int] = {}
+    boards_by_name: dict[str, int] = {}
+    n_boards = 0
+    for bm in _MODEL.finditer(text):
+        brand, block = bm.group(1), bm.group(2)
+        ptype = ("laptop" if any(k in brand.lower() for k in LAPTOP_BRANDS)
+                 else "desktop")
+        for sid, disp in _SYS.findall(block):
+            if sid not in modern_sids:
+                continue
+            name = f"{brand} {disp}".replace("-", " ")
+            name = re.sub(r"\s+", " ", name).strip()
+            if name in DENY_NAMES:
+                continue
+            if name not in boards_by_name:
+                slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
+                boards_by_name[name] = db.upsert_board(
+                    conn, run_date, vendor=VENDOR, vendor_product_id=slug,
+                    name=name, slug=slug, product_type=ptype,
+                    support_url="https://www.dell.com/support/home/en-us"
+                                f"/product-support/product/{disp.lower()}/drivers")
+                n_boards += 1
+            sys_to_board[sid] = boards_by_name[name]
+    log(f"dell: {len(boards_by_name)} systems ({len(sys_to_board)} systemIDs)")
+
+    comps = _COMPONENT.findall(text)
+    if limit:
+        comps = comps[:limit * 40]
+    n_listings = n_new = 0
+    for block in comps:
+        head = block[:block.find(">")]
+        attrs = dict(_ATTR.findall(head))
+        ctype = _CTYPE.search(block)
+        kind = KIND.get(ctype.group(1) if ctype else "", "utility")
+        name_m = _NAME.search(block)
+        cat_m = _CAT.search(block)
+        ver = attrs.get("vendorVersion") or ""
+        pv = versions.parse(ver)
+        date = _date(attrs.get("releaseDate", "")) or \
+            (attrs.get("dateTime") or "")[:10] or None
+        board_ids = {sys_to_board[sid] for sid, _ in _SYS.findall(block)
+                     if sid in sys_to_board and sid in modern_sids}
+        if not board_ids:
+            continue
+        artefact_id, is_new = db.upsert_artefact(
+            conn, run_date, vendor=VENDOR,
+            vendor_artefact_id=attrs.get("releaseID") or attrs["packageID"],
+            kind=kind,
+            component_hint=(cat_m.group(1).strip() if cat_m else None),
+            version_raw=ver or None,
+            version_normalised=pv.normalised_json,
+            release_date=date,
+            file_size=int(attrs["size"]) if attrs.get("size", "").isdigit() else None,
+            url=DL_BASE + attrs.get("path", ""),
+            md5=(attrs.get("hashMD5") or "").lower() or None,
+            os_raw="Win11 64",
+            description_text=(name_m.group(1).strip() if name_m else None),
+        )
+        for bid in board_ids:
+            db.link_board_artefact(conn, run_date, bid, artefact_id, date)
+            n_listings += 1
+        n_new += is_new
+    conn.commit()
+    log(f"dell: {n_boards} systems, {n_listings} listings, {n_new} new artefacts")
+    return {"boards": n_boards, "listings": n_listings, "new_artefacts": n_new}

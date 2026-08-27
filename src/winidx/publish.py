@@ -298,6 +298,8 @@ def _emit_by_hwid(conn, out, families, water, generated) -> int:
 def _emit_by_board(conn, out, families, water, board_lag, bios_per_board,
                    effective, generated) -> int:
     """One JSON per board for the picker page — mirrors the by-hwid pattern."""
+    import shutil as _sh
+    _sh.rmtree(out / "by-board", ignore_errors=True)   # drop stale boards
     (out / "by-board").mkdir(parents=True, exist_ok=True)
     level = {w["family_id"]: w for w in water}
     boards = {r["board_id"]: dict(r) for r in conn.execute(

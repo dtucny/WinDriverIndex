@@ -90,7 +90,8 @@ RULES: list[tuple[str, str, str, list[str]]] = [
     # Marvell acquired Aquantia; ASUS labels the same AQtion line 'Marvell'.
     ("Aquantia LAN", "aquantia", "lan",
      [r"aquantia", r"10g.*lan", r"marvell (ethernet|lan)", r"lan marvell"]),
-    ("Intel LAN", "intel", "lan", [r"intel (lan|network|ethernet)", r"61 intel"]),
+    ("Intel LAN", "intel", "lan", [r"intel (lan|network|ethernet)", r"61 intel",
+     r"intel.*ethernet"]),
     ("Intel Bluetooth", "intel", "bluetooth", [r"intel blue", r"intel bt\b", r"ax2\d\d.*bluetooth", r"\b607\b"]),
     ("Intel Wi-Fi", "intel", "wlan",
      # bare 'Wi-Fi Driver V22.x' on ASUS Intel boards is Intel's 22.x line
@@ -107,7 +108,8 @@ RULES: list[tuple[str, str, str, list[str]]] = [
     ("Intel VGA", "intel", "graphics", [r"gna driver v3\d\.0\.101"]),
     ("Intel GNA", "intel", "npu", [r"gna"]),
     ("Intel NPU", "intel", "npu", [r"intel npu", r"neural processing"]),
-    ("Intel DTT", "intel", "chipset", [r"dynamic tuning", r"\bdtt\b", r"\bdptf\b"]),
+    ("Intel DTT", "intel", "chipset", [r"dynamic tuning", r"\bdtt\b", r"\bdptf\b",
+     r"thermal framework"]),
     ("Intel Serial I/O", "intel", "chipset", [r"serial i/?o", r"serialio"]),
     ("Intel HID Event Filter", "intel", "chipset", [r"hid event", r"\bhid\b"]),
     ("Intel PMT", "intel", "chipset", [r"platform monitoring", r"\bpmt\b"]),
@@ -131,7 +133,8 @@ RULES: list[tuple[str, str, str, list[str]]] = [
     ("GPU VBIOS", "nvidia", "graphics", [r"\bvbios\b", r"gpu firmware"]),
     ("NVIDIA Graphics", "nvidia", "graphics",
      [r"n?vidia", r"n?vdia", r"geforce", r"\bquadro\b"]),
-    ("Intel ISH", "intel", "chipset", [r"sensor hub", r"\bish\b"]),
+    ("Intel ISH", "intel", "chipset", [r"sensor hub", r"\bish\b",
+     r"integrated sensor"]),
     ("Intel WWAN", "intel", "wwan", [r"intel.*wwan", r"xmm7\d+"]),
     ("WWAN (module vendors)", "oem", "wwan",
      [r"wwan", r"quectel", r"fibocom", r"\bwan driver\b"]),
@@ -158,6 +161,8 @@ RULES: list[tuple[str, str, str, list[str]]] = [
     ("ITE", "ite", "usb", [r"\bite\b", r"it8[0-9]{2}"]),
     # ASUS-branded generic radio packages: silicon unidentifiable from the
     # listing; INF/HWID evidence will split these into real families later.
+    ("USB-C Connector Manager", "oem", "usb",
+     [r"usb connector manager", r"\bucsi\b"]),
     ("Realtek UCM", "realtek", "usb", [r"\bucm\b", r"ucmcx"]),
     ("ASUS Bluetooth (unspecified)", "oem", "bluetooth",
      [r"asus bluetooth", r"\basus bt\b"]),
