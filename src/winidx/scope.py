@@ -20,19 +20,24 @@ CHIPSET_SOCKET: dict[str, str] = {
     "Q870": "LGA1851", "W880": "LGA1851",
 }
 
-# Chipset token anywhere in a product name: base like B650 plus optional E/A
-# suffix (B650E, X870E, A620A). Longest tokens are matched first by \w rules.
-_TOKEN = re.compile(r"\b([ABXZHQW]\d{3})(E|A)?\b")
+# Chipset token anywhere in a product name: base like B650 plus trailing
+# letters — 'E'/'A' are chipset variants (B650E, X870E, A620A) worth keeping,
+# while form-factor suffixes (B550M, B650I, B860TM) must still MATCH but are
+# not part of the chipset. The original `(E|A)?\b` pattern silently rejected
+# every M/I/TM-suffixed name — a huge coverage hole (271 of 448 MSI products).
+_TOKEN = re.compile(r"\b([ABXZHQW]\d{3})([A-Z]{0,2})\b")
 
 
 def extract_chipset(name: str) -> tuple[str, str] | None:
     """Return (chipset_as_named, socket) for an in-scope board name, else None.
 
-    'B650E EAGLE' -> ('B650E', 'AM5'); 'GA-Z270X-Gaming' -> None (out of scope).
+    'B650E EAGLE' -> ('B650E', 'AM5'); 'B550M PRO-VDH' -> ('B550', 'AM4');
+    'GA-Z270X-Gaming' -> None (out of scope).
     """
-    for m in _TOKEN.finditer(name):
-        base, suffix = m.group(1), m.group(2) or ""
+    for m in _TOKEN.finditer(name.upper()):
+        base, suffix = m.group(1), m.group(2)
         socket = CHIPSET_SOCKET.get(base)
         if socket:
-            return base + suffix, socket
+            keep = suffix if suffix in ("E", "A") else ""
+            return base + keep, socket
     return None
