@@ -21,6 +21,11 @@ published data schema is versioned separately (see `schema_version` in every
   on vendor sites, year-based 26.x on WU), the release date arbitrates and
   the vendor row wins ties. `water-level.json` gains `upstream_only` and
   `best_vendor_version` fields.
+- **Silicon-vendor download pages as upstream sources** (`winidx crawl
+  silicon`): AMD chipset, Intel chipset INF / Wi-Fi / Bluetooth, regex over
+  public pages, loud-miss on layout changes. With both upstream sources, 14
+  of 49 families sit ahead of every board vendor; Intel Bluetooth's level is
+  independently confirmed by both (24.60.0.4).
 
 ### Fixed
 - Water level no longer misreports families whose packages bundle other
