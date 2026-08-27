@@ -127,6 +127,15 @@ def _water_level(conn, families, effective) -> list[dict]:
         clean = [r for r in rows if not _is_combo(r)]
         if clean:
             rows = clean
+        # date-as-version listings ('AMD VGA driver v2026.04.15') outrank
+        # every real scheme numerically; they may not set water where real
+        # versions exist
+        def _yearish(r):
+            t = effective[r["artefact_id"]].tuple
+            return t and 1990 <= t[0] <= 2100
+        real = [r for r in rows if not _yearish(r)]
+        if real:
+            rows = real
         top = max(rows, key=lambda r: versions.compare_key(effective[r["artefact_id"]]))
         # Best version any *board vendor* lists, for the upstream-gap metric.
         vend_rows = [r for r in rows if r["source_type"] == "vendor"]
@@ -143,6 +152,20 @@ def _water_level(conn, families, effective) -> list[dict]:
             td, vd = top["release_date"], vend_top["release_date"]
             if not td or (vd and vd >= td):
                 top = vend_top
+        # Upstream-vs-upstream scheme arbitration: WU lists internal WDDM
+        # versions (32.x) while AMD's own page lists marketing versions
+        # (26.x) — when two upstream rows top different majors, the
+        # date-newer one is the truer water.
+        if top["source_type"] == "upstream":
+            others = [r for r in rows if r["source_type"] == "upstream"
+                      and effective[r["artefact_id"]].tuple[0]
+                      != effective[top["artefact_id"]].tuple[0]]
+            if others:
+                alt = max(others, key=lambda r: versions.compare_key(
+                    effective[r["artefact_id"]]))
+                td, ad = top["release_date"], alt["release_date"]
+                if ad and (not td or ad > td):
+                    top = alt
         # Majority-line guard: occasional vendor mislabels put a foreign
         # version scheme atop a family (ASUS lists graphics 31.0.101.x and
         # chipset 10.1.x packages titled 'Intel GNA Driver'). When the top's

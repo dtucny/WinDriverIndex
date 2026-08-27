@@ -90,6 +90,14 @@ published data schema is versioned separately (see `schema_version` in every
   MSI's 25.10.36 to a bundled component's 25.10.0.4). Ambiguous multi-chip
   Realtek bundles route by version line instead of first-anchor-wins.
 
+- **AMD Adrenalin as an upstream source** (Ryzen CPU download page):
+  AMD Graphics water is now the real Adrenalin release (26.8.1, 2026-08-20)
+  instead of an ASUS date-as-version listing. Two new water guards:
+  year-shaped versions (v2026.04.15) can't set water where real schemes
+  exist, and when two upstream sources top different schemes (WU's internal
+  WDDM 32.x vs AMD's marketing 26.x) the date-newer one wins. Silicon-page
+  date extraction widened (ISO + US formats).
+
 ### Fixed
 - Water-level integrity hardening: a majority-version-line guard stops
   vendor mislabels from topping a family with a foreign scheme (ASUS ships

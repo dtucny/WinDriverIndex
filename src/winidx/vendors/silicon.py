@@ -27,6 +27,13 @@ PAGES: list[tuple[str, str, str]] = [
     ("AMD Chipset",
      "https://www.amd.com/en/support/downloads/drivers.html/chipsets/am5/x670.html",
      r"Chipset_Software_(\d+(?:\.\d+)+)"),
+    # Adrenalin from a representative Ryzen CPU page — the honest upstream
+    # for the AMD iGPU family (board vendors list internal-scheme or even
+    # date-string versions; AMD's marketing scheme is YY.M.P).
+    ("AMD Graphics",
+     "https://www.amd.com/en/support/downloads/drivers.html/processors/ryzen/"
+     "ryzen-7000-series/amd-ryzen-7-7800x3d.html",
+     r"Adrenalin\s+(\d+\.\d+\.\d+)"),
     ("Intel Chipset INF",
      "https://www.intel.com/content/www/us/en/download/19347/chipset-inf-utility.html",
      r"[Vv]ersion[^0-9]{0,20}(\d+(?:\.\d+){3})"),
@@ -68,11 +75,16 @@ def crawl(conn: sqlite3.Connection, client, run_date: str,
         # a page can carry both '24.60.0' and '24.60.0.3' — take the max
         m = max(matches, key=lambda x: versions.compare_key(versions.parse(x.group(1))))
         ver = m.group(1)
-        # best-effort release date: first US-format date within 300 chars
-        # after the version match
-        dm = _DATE.search(body[m.end():m.end() + 300])
-        date = (f"{dm.group(3)}-{int(dm.group(1)):02d}-{int(dm.group(2)):02d}"
-                if dm else None)
+        # best-effort release date near the version match: ISO first (AMD),
+        # then US format (Intel), within a generous window
+        window = body[m.end():m.end() + 3000]
+        iso = re.search(r"(\d{4}-\d{2}-\d{2})", window)
+        dm = _DATE.search(window)
+        if iso and (not dm or iso.start() < dm.start()):
+            date = iso.group(1)
+        else:
+            date = (f"{dm.group(3)}-{int(dm.group(1)):02d}-{int(dm.group(2)):02d}"
+                    if dm else None)
         _, is_new = db.upsert_artefact(
             conn, run_date, vendor=VENDOR,
             vendor_artefact_id=family,
