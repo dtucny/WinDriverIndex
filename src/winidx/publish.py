@@ -57,6 +57,8 @@ def run(conn: sqlite3.Connection, *, log=print) -> dict:
     bios_data = bios.compute(conn)
     bios_per_board = bios_data.pop("per_board")
     emit("bios.json", bios_data)
+    emit("dashboard.json", _dashboard(conn, families, water, board_lag,
+                                      effective, bios_data))
     emit("families.json", list(families.values()))
     emit("artefacts.json", artefacts)
     emit("boards.json", boards)
@@ -276,3 +278,109 @@ def _emit_by_board(conn, out, families, water, board_lag, bios_per_board,
             json.dumps(payload, indent=1, ensure_ascii=False) + "\n")
         n += 1
     return n
+
+
+# component grouping shared with the dashboard's per-board chips
+_GROUP = {"chipset": "Chipset", "npu": "Chipset", "graphics": "Graphics",
+          "audio": "Audio", "lan": "LAN", "wlan": "Wireless",
+          "bluetooth": "Wireless", "storage": "Storage", "usb": "USB",
+          "camera": "Camera", "wwan": "WWAN"}
+_GROUP_ORDER = ["Chipset", "Graphics", "Audio", "LAN", "Wireless", "Storage",
+                "USB", "Camera", "WWAN", "Other"]
+
+
+def _dashboard(conn, families, water, board_lag, effective, bios_data) -> dict:
+    """Every figure the landing page renders, so the page never goes stale."""
+    from collections import defaultdict as _dd
+    today = dt.date.today()
+    bmeta = {r["board_id"]: dict(r) for r in conn.execute(
+        "SELECT board_id, vendor, name, socket, product_type FROM board")}
+
+    per_board: dict[int, list] = _dd(list)
+    for e in board_lag:
+        if e["lag_days"] is not None:
+            per_board[e["board_id"]].append(e)
+
+    # last driver activity per board (for the silent-≥2yr metric)
+    last_driver: dict[int, str] = {}
+    for r in conn.execute("""
+            SELECT ba.board_id, MAX(ba.listed_date) d FROM board_artefact ba
+            JOIN artefact a ON a.artefact_id = ba.artefact_id
+            WHERE a.kind = 'driver' AND a.family_id IS NOT NULL
+            GROUP BY ba.board_id"""):
+        if r["d"]:
+            last_driver[r["board_id"]] = r["d"]
+
+    def med(xs):
+        xs = sorted(xs)
+        return xs[len(xs) // 2] if xs else None
+
+    vendors: dict[str, dict] = {}
+    by_vendor: dict[str, list[int]] = _dd(list)
+    for bid in per_board:
+        by_vendor[bmeta[bid]["vendor"]].append(bid)
+    for v, bids in sorted(by_vendor.items()):
+        lags = sorted(l["lag_days"] for b in bids for l in per_board[b])
+        worst_per_board = [max(l["lag_days"] for l in per_board[b]) for b in bids]
+        silent = sum(1 for b in bids if last_driver.get(b)
+                     and (today - dt.date.fromisoformat(last_driver[b])).days > 730)
+        n = len(bids)
+        vendors[v] = {
+            "boards": n,
+            "median_lag_days": med(lags),
+            "p90_lag_days": lags[int(len(lags) * 0.9)] if lags else None,
+            "worst_lag_days": lags[-1] if lags else None,
+            "over_1yr": sum(1 for w in worst_per_board if w > 365),
+            "over_1yr_pct": round(100 * sum(1 for w in worst_per_board if w > 365) / n),
+            "silent_2yr": silent,
+            "silent_2yr_pct": round(100 * silent / n),
+        }
+
+    heat: dict[str, dict] = {}
+    for v, bids in by_vendor.items():
+        cells = _dd(list)
+        for b in bids:
+            sock = bmeta[b]["socket"]
+            if sock:
+                cells[sock].append(max(l["lag_days"] for l in per_board[b]))
+        if cells:
+            heat[v] = {s: {"boards": len(x), "median_worst": med(x)}
+                       for s, x in cells.items()}
+
+    def board_summary(bid):
+        chips: dict[str, int] = {}
+        for l in per_board[bid]:
+            g = _GROUP.get(families[l["family_id"]]["component"], "Other")
+            chips[g] = max(chips.get(g, 0), l["lag_days"])
+        lags = [l["lag_days"] for l in per_board[bid]]
+        m = bmeta[bid]
+        return {
+            "board_id": bid, "name": m["name"],
+            "socket": m["socket"] or m["product_type"],
+            "families": len(lags), "current": sum(1 for x in lags if x == 0),
+            "worst": max(lags),
+            "chips": [[g, chips[g]] for g in _GROUP_ORDER if g in chips],
+        }
+
+    best_worst = {}
+    for v, bids in by_vendor.items():
+        ranked = sorted(bids, key=lambda b: (max(l["lag_days"] for l in per_board[b]),
+                                             -len(per_board[b])))
+        best_worst[v] = {"best": board_summary(ranked[0]),
+                         "worst": board_summary(ranked[-1])}
+
+    return {
+        "tiles": {
+            "boards": len(bmeta), "vendors": len(by_vendor),
+            "families": len(water),
+            "artefacts": conn.execute(
+                "SELECT COUNT(*) FROM artefact WHERE kind='driver'").fetchone()[0],
+        },
+        "vendors": vendors,
+        "heatmap": heat,
+        "best_worst": best_worst,
+        "upstream": {"ahead": sum(1 for w in water if w["upstream_only"]),
+                     "total": len(water)},
+        "bios": {"vendors": bios_data["vendors"],
+                 "agesa_water": bios_data["agesa_water"]},
+    }

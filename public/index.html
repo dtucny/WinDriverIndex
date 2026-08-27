@@ -140,222 +140,53 @@
     <h1>WinDriver<span class="dot">Index</span></h1>
     <button id="themeToggle" type="button" aria-label="Toggle colour theme">◐ theme</button>
   </div>
-  <p class="sub">A cross-vendor index of motherboard driver versions — and the
-  <b>vendor-lag metric</b>: how far behind the newest available driver each
-  vendor's board listings actually sit.</p>
-  <p class="meta">Data generated <strong>2026-08-26</strong> · Windows&nbsp;11 x64 ·
-  AM4 / AM5 / Intel 600–800 desktop boards ·
+  <p class="sub">A cross-vendor index of motherboard and system driver versions —
+  and the <b>vendor-lag metric</b>: how far behind the newest available driver
+  each vendor's listings actually sit.</p>
+  <p class="meta">Data generated <strong id="gen">…</strong> ·
+  Windows&nbsp;11 x64 · AM4 / AM5 / Intel 600–800 boards + Lenovo Think &amp; Legion ·
   <a href="https://github.com/dtucny/WinDriverIndex">source &amp; method on GitHub ↗</a></p>
 </header>
 
 <p style="margin-top:1.2rem"><a class="btn" href="/board.html" style="font-size:1rem">🔎 How’s <i>my</i> motherboard doing? — check your board</a></p>
 
-<section class="tiles">
-  <div class="tile"><div class="n">1,124</div><div class="l">boards indexed</div></div>
-  <div class="tile"><div class="n">4</div><div class="l">vendors</div></div>
-  <div class="tile"><div class="n">49</div><div class="l">driver families</div></div>
-  <div class="tile"><div class="n">1,534</div><div class="l">driver artefacts</div></div>
-</section>
+<section class="tiles" id="tiles"></section>
 
 <h2>How current are each vendor's listings?</h2>
 <p class="note">Ranked best to worst by median lag — the typical gap between a
-board's listed driver and the newest version any vendor ships for that silicon.
-The damning number is the share of a vendor's boards <b>more than a year behind
-on at least one driver family</b>.</p>
-<div class="card">
-  <!-- MSI -->
-  <div class="rank">
-    <div class="who"><b>MSI</b><span class="pos">#1 · 177 boards</span></div>
-    <div class="bars">
-      <span class="k">Median lag</span>
-      <div class="track"><div class="fill good" style="width:21%"></div><div class="yr" style="left:100%"></div></div>
-      <span class="bval">77 d</span>
-      <span class="k">Boards &gt;1yr behind</span>
-      <div class="track"><div class="fill warn" style="width:40%"></div></div>
-      <span class="bval">40%</span>
-      <span class="k">Silent ≥2 yr</span>
-      <div class="track"><div class="fill good" style="width:0%"></div></div>
-      <span class="bval">0%</span>
-    </div>
-  </div>
-  <!-- ASUS -->
-  <div class="rank">
-    <div class="who"><b>ASUS</b><span class="pos">#2 · 269 boards</span></div>
-    <div class="bars">
-      <span class="k">Median lag</span>
-      <div class="track"><div class="fill" style="width:27%"></div><div class="yr" style="left:100%"></div></div>
-      <span class="bval">99 d</span>
-      <span class="k">Boards &gt;1yr behind</span>
-      <div class="track"><div class="fill crit" style="width:80%"></div></div>
-      <span class="bval">80%</span>
-      <span class="k">Silent ≥2 yr</span>
-      <div class="track"><div class="fill good" style="width:0%"></div></div>
-      <span class="bval">0%</span>
-    </div>
-  </div>
-  <!-- Gigabyte -->
-  <div class="rank">
-    <div class="who"><b>Gigabyte</b><span class="pos">#3 · 313 boards</span></div>
-    <div class="bars">
-      <span class="k">Median lag</span>
-      <div class="track"><div class="fill warn" style="width:53%"></div><div class="yr" style="left:100%"></div></div>
-      <span class="bval">195 d</span>
-      <span class="k">Boards &gt;1yr behind</span>
-      <div class="track"><div class="fill crit" style="width:78%"></div></div>
-      <span class="bval">78%</span>
-      <span class="k">Silent ≥2 yr</span>
-      <div class="track"><div class="fill warn" style="width:4%"></div></div>
-      <span class="bval">4%</span>
-    </div>
-  </div>
-  <!-- ASRock -->
-  <div class="rank">
-    <div class="who"><b>ASRock</b><span class="pos">#4 · 365 boards</span></div>
-    <div class="bars">
-      <span class="k">Median lag</span>
-      <div class="track"><div class="fill crit" style="width:57%"></div><div class="yr" style="left:100%"></div></div>
-      <span class="bval">208 d</span>
-      <span class="k">Boards &gt;1yr behind</span>
-      <div class="track"><div class="fill crit" style="width:80%"></div></div>
-      <span class="bval">80%</span>
-      <span class="k">Silent ≥2 yr</span>
-      <div class="track"><div class="fill crit" style="width:18%"></div></div>
-      <span class="bval">18%</span>
-    </div>
-  </div>
-</div>
-<div class="legend"><span>Median-lag track spans 0 → <b>1 year</b> (marker at right).</span></div>
+listed driver and the newest version <i>any</i> source ships for that silicon
+(board vendors plus Windows Update and AMD/Intel direct). The damning numbers:
+the share of a vendor's machines <b>more than a year behind on at least one
+driver family</b>, and the share whose listings have had <b>no driver update at
+all in two years</b>.</p>
+<div class="card" id="scorecard"></div>
+<div class="legend"><span>Median-lag track spans 0 → <b>2 years</b>.</span></div>
 
 <h2>Full metric</h2>
-<div class="card scroll">
-<table>
-  <thead><tr><th>Vendor</th><th class="num">Median lag</th><th class="num">p90 lag</th>
-    <th class="num">Worst</th><th class="num">Boards &gt;1yr behind</th><th class="num">Silent ≥2yr</th></tr></thead>
-  <tbody>
-    <tr><td class="vend">MSI</td><td class="num">77 d</td><td class="num">340 d</td><td class="num">5.1 yr</td><td class="num">71 / 177 &nbsp;(40%)</td><td class="num">0</td></tr>
-    <tr><td class="vend">ASUS</td><td class="num">99 d</td><td class="num">704 d</td><td class="num">4.5 yr</td><td class="num">215 / 269 &nbsp;(80%)</td><td class="num">0</td></tr>
-    <tr><td class="vend">Gigabyte</td><td class="num">195 d</td><td class="num">1366 d</td><td class="num">4.5 yr</td><td class="num">243 / 313 &nbsp;(78%)</td><td class="num">13 (4%)</td></tr>
-    <tr><td class="vend">ASRock</td><td class="num">208 d</td><td class="num">1353 d</td><td class="num">8.5 yr</td><td class="num">291 / 365 &nbsp;(80%)</td><td class="num">65 (18%)</td></tr>
-  </tbody>
-</table>
-</div>
-<p class="note" style="margin-top:12px"><b>Two-tier support, quantified.</b>
-“Silent ≥2 yr” counts boards whose listing has had <b>no driver update of any
-kind in over two years</b> — not slow support, none. MSI and ASUS maintain
-their entire catalogues; ASRock ships the most variants per chipset (~15 SKUs)
-and has left 65 boards — 18% of its catalogue — fully silent. Notably these are
-not its oldest boards: they are still-sold LGA1700 B760/Z790 models untouched
-since early 2024, while its AM4 boards keep receiving occasional chipset
-refreshes.</p>
+<div class="card scroll" id="fullmetric"></div>
+<p class="note" style="margin-top:12px" id="tiernote"></p>
 
 <h2>Do vendors maintain their back catalogue?</h2>
-<p class="note">Median worst-case lag per platform. AM4 launched in 2017, AM5 and
-Intel 800 are current. Darker = further behind: the tell-tale pattern is a
-vendor keeping the current generation fresh while old-but-still-sold boards
-drift for years.</p>
-<div class="card scroll" style="padding:14px">
-<table class="heat">
-  <thead><tr><th></th><th>AM4<br><small style="font-weight:400">2017</small></th>
-    <th>AM5<br><small style="font-weight:400">2022</small></th>
-    <th>Intel 600/700<br><small style="font-weight:400">2021</small></th>
-    <th>Intel 800<br><small style="font-weight:400">2024</small></th></tr></thead>
-  <tbody>
-    <tr><th style="text-align:right">MSI</th>
-      <td><div class="cell c3">621<small>25 bd</small></div></td>
-      <td><div class="cell c1">220<small>58 bd</small></div></td>
-      <td><div class="cell c2">340<small>67 bd</small></div></td>
-      <td><div class="cell c1">143<small>27 bd</small></div></td></tr>
-    <tr><th style="text-align:right">ASUS</th>
-      <td><div class="cell c4">909<small>48 bd</small></div></td>
-      <td><div class="cell c2">282<small>87 bd</small></div></td>
-      <td><div class="cell c4">1078<small>108 bd</small></div></td>
-      <td><div class="cell c2">455<small>26 bd</small></div></td></tr>
-    <tr><th style="text-align:right">Gigabyte</th>
-      <td><div class="cell c5">1731<small>71 bd</small></div></td>
-      <td><div class="cell c3">519<small>95 bd</small></div></td>
-      <td><div class="cell c4">1057<small>114 bd</small></div></td>
-      <td><div class="cell c2">273<small>33 bd</small></div></td></tr>
-    <tr><th style="text-align:right">ASRock</th>
-      <td><div class="cell c5">1748<small>106 bd</small></div></td>
-      <td><div class="cell c2">482<small>95 bd</small></div></td>
-      <td><div class="cell c4">1345<small>109 bd</small></div></td>
-      <td><div class="cell c2">454<small>53 bd</small></div></td></tr>
-  </tbody>
-</table>
-<div class="legend">days behind:
-  <i style="background:var(--h1)"></i><span>&lt;250</span>
-  <i style="background:var(--h2)"></i><span>250–500</span>
-  <i style="background:var(--h3)"></i><span>500–900</span>
-  <i style="background:var(--h4)"></i><span>900–1400</span>
-  <i style="background:var(--h5)"></i><span>1400+</span>
-</div>
-</div>
+<p class="note">Median worst-case lag per desktop platform (Lenovo machines
+have no socket and sit out this view). Darker = further behind: the tell-tale
+pattern is a vendor keeping the current generation fresh while
+old-but-still-sold boards drift for years.</p>
+<div class="card scroll" style="padding:14px" id="heatwrap"></div>
 
 <h2>Best &amp; worst maintained, by vendor</h2>
-<p class="note">Every vendor keeps some boards current and lets others rot — so here is each vendor’s best-kept and most-neglected board, broken down by component. The chips show <b>where</b> the lag is: one stale driver reads very differently from a board abandoned across the board.</p>
-<div class="vgrid">
-<div class="card vblock"><div class="vhead">MSI<span class="pos">177 boards</span></div>
-  <div class="bw"><div class="tag good">▲ Best kept</div>
-    <div class="bname">PRO B860-P WIFI <span class="sk">LGA1851</span><span class="hl">worst 143d behind · 15 families</span></div>
-    <div class="chips"><span class="chip a">Chipset<b class="cv">143d</b></span><span class="chip a">Graphics<b class="cv">80d</b></span><span class="chip a">Audio<b class="cv">1d</b></span><span class="chip a">LAN<b class="cv">21d</b></span><span class="chip a">Wireless<b class="cv">36d</b></span><span class="chip g">Storage<b class="cv">✓</b></span></div></div>
-  <div class="bw"><div class="tag crit">▼ Most neglected</div>
-    <div class="bname">MEG X570 GODLIKE <span class="sk">AM4</span><span class="hl">5.7 yr behind · 5 families</span></div>
-    <div class="chips"><span class="chip g">Chipset<b class="cv">✓</b></span><span class="chip r">Audio<b class="cv">5.7yr</b></span><span class="chip r">LAN<b class="cv">3.0yr</b></span><span class="chip r">Wireless<b class="cv">2.0yr</b></span><span class="chip r">Storage<b class="cv">1.7yr</b></span></div></div>
-</div>
-<div class="card vblock"><div class="vhead">ASUS<span class="pos">269 boards</span></div>
-  <div class="bw"><div class="tag good">▲ Best kept</div>
-    <div class="bname">ROG CROSSHAIR X870E EDITION 20 <span class="sk">AM5</span><span class="hl">worst 50d behind · 12 families</span></div>
-    <div class="chips"><span class="chip g">Chipset<b class="cv">✓</b></span><span class="chip g">Graphics<b class="cv">✓</b></span><span class="chip a">Audio<b class="cv">50d</b></span><span class="chip g">LAN<b class="cv">✓</b></span><span class="chip g">Wireless<b class="cv">✓</b></span><span class="chip g">Storage<b class="cv">✓</b></span><span class="chip a">USB<b class="cv">37d</b></span></div></div>
-  <div class="bw"><div class="tag crit">▼ Most neglected</div>
-    <div class="bname">ROG MAXIMUS Z690 APEX <span class="sk">LGA1700</span><span class="hl">4.8 yr behind · 14 families</span></div>
-    <div class="chips"><span class="chip r">Chipset<b class="cv">1.9yr</b></span><span class="chip r">Graphics<b class="cv">3.7yr</b></span><span class="chip r">Audio<b class="cv">4.8yr</b></span><span class="chip a">LAN<b class="cv">360d</b></span><span class="chip r">Wireless<b class="cv">1.4yr</b></span><span class="chip a">Storage<b class="cv">188d</b></span><span class="chip r">USB<b class="cv">3.6yr</b></span></div></div>
-</div>
-<div class="card vblock"><div class="vhead">Gigabyte<span class="pos">313 boards</span></div>
-  <div class="bw"><div class="tag good">▲ Best kept</div>
-    <div class="bname">Z890 AERO G <span class="sk">LGA1851</span><span class="hl">worst 195d behind · 15 families</span></div>
-    <div class="chips"><span class="chip a">Chipset<b class="cv">181d</b></span><span class="chip a">Graphics<b class="cv">106d</b></span><span class="chip a">Audio<b class="cv">195d</b></span><span class="chip g">LAN<b class="cv">✓</b></span><span class="chip a">Wireless<b class="cv">90d</b></span><span class="chip g">Storage<b class="cv">✓</b></span><span class="chip a">USB<b class="cv">9d</b></span></div></div>
-  <div class="bw"><div class="tag crit">▼ Most neglected</div>
-    <div class="bname">B450 AORUS Elite V2 (rev. 1.x) <span class="sk">AM4</span><span class="hl">4.8 yr behind · 4 families</span></div>
-    <div class="chips"><span class="chip r">Chipset<b class="cv">2.3yr</b></span><span class="chip r">Graphics<b class="cv">2.4yr</b></span><span class="chip r">Audio<b class="cv">4.8yr</b></span><span class="chip r">LAN<b class="cv">2.0yr</b></span></div></div>
-</div>
-<div class="card vblock"><div class="vhead">ASRock<span class="pos">363 boards</span></div>
-  <div class="bw"><div class="tag good">▲ Best kept</div>
-    <div class="bname">A620AM-P WiFi <span class="sk">AM5</span><span class="hl">worst 6d behind · 7 families</span></div>
-    <div class="chips"><span class="chip g">Chipset<b class="cv">✓</b></span><span class="chip g">Graphics<b class="cv">✓</b></span><span class="chip g">Audio<b class="cv">✓</b></span><span class="chip g">LAN<b class="cv">✓</b></span><span class="chip a">Wireless<b class="cv">6d</b></span></div></div>
-  <div class="bw"><div class="tag crit">▼ Most neglected</div>
-    <div class="bname">Fatal1ty AB350 Gaming K4 <span class="sk">AM4</span><span class="hl">8.5 yr behind · 4 families</span></div>
-    <div class="chips"><span class="chip g">Chipset<b class="cv">✓</b></span><span class="chip a">Graphics<b class="cv">19d</b></span><span class="chip r">Audio<b class="cv">8.5yr</b></span><span class="chip r">LAN<b class="cv">4.2yr</b></span></div></div>
-</div>
-</div>
-<div class="legend" style="margin-top:12px">component vs the newest any vendor ships: <span class="chip g">current<b class="cv">✓</b></span> <span class="chip a">behind<b class="cv">&lt;1yr</b></span> <span class="chip r">behind<b class="cv">1yr+</b></span></div>
+<p class="note">Every vendor keeps some machines current and lets others rot —
+each vendor's best-kept and most-neglected, broken down by component. The
+chips show <b>where</b> the lag is: one stale driver reads very differently
+from a machine abandoned across the board.</p>
+<div class="vgrid" id="vgrid"></div>
+<div class="legend" style="margin-top:12px">component vs the newest anyone ships:
+  <span class="chip g">current<b class="cv">✓</b></span>
+  <span class="chip a">behind<b class="cv">&lt;1yr</b></span>
+  <span class="chip r">behind<b class="cv">1yr+</b></span></div>
 
 <h2>BIOS: the opposite story</h2>
-<p class="note">Unlike drivers, <b>BIOS pipelines stay alive</b> — the 2025/26
-security waves (fTPM, microcode, AGESA) pushed updates to nearly every board,
-including ones whose driver listings were abandoned years ago. Driver
-abandonment is a choice, not incapacity. On AMD boards the vendors all wrap
-the same AMD AGESA bundle, making it the one cross-vendor-comparable BIOS
-component: the current water level is <b>AGESA 1.3.0.1c</b> (AM5) and
-<b>1.2.0.F</b> (AM4).</p>
-<div class="card scroll">
-<table>
-  <thead><tr><th>Vendor</th><th class="num">Median since last BIOS</th>
-    <th class="num">BIOS within 1 yr</th><th class="num">Silent ≥2 yr</th>
-    <th class="num">AMD boards on newest AGESA</th></tr></thead>
-  <tbody>
-    <tr><td class="vend">Gigabyte</td><td class="num">28 d</td><td class="num">100%</td><td class="num">0%</td><td class="num">96%</td></tr>
-    <tr><td class="vend">ASUS</td><td class="num">56 d</td><td class="num">100%</td><td class="num">0%</td><td class="num">8%*</td></tr>
-    <tr><td class="vend">MSI</td><td class="num">57 d</td><td class="num">100%</td><td class="num">0%</td><td class="num">27%</td></tr>
-    <tr><td class="vend">ASRock</td><td class="num">108 d</td><td class="num">88%</td><td class="num">12%</td><td class="num">2%*</td></tr>
-  </tbody>
-</table>
-</div>
-<p class="note" style="margin-top:10px">Gigabyte inverts its driver reputation
-here: slowest on drivers, fastest and most complete on BIOS. The
-newest-AGESA column is strict — *ASUS ships new AGESA as beta BIOS first (its
-stable channel trails), and ASRock's AM5 fleet sits almost entirely one step
-behind at 1.3.0.1b. Full data in
-<a href="/v1/latest/bios.json">bios.json</a>.</p>
+<p class="note" id="biosnote"></p>
+<div class="card scroll" id="biostable"></div>
 
 <h2>Use the data</h2>
 <p class="note">Everything here is static JSON, CORS-enabled, versioned, and free
@@ -365,11 +196,13 @@ below the water line.</p>
 <table class="endpoints">
   <tbody>
     <tr><td><a href="/v1/latest/water-level.json"><code>/v1/latest/water-level.json</code></a></td><td>Newest known version per driver family</td></tr>
-    <tr><td><a href="/v1/latest/vendor-lag.json"><code>/v1/latest/vendor-lag.json</code></a></td><td>The vendor-lag metric above</td></tr>
+    <tr><td><a href="/v1/latest/vendor-lag.json"><code>/v1/latest/vendor-lag.json</code></a></td><td>The vendor-lag metric</td></tr>
     <tr><td><a href="/v1/latest/families.json"><code>/v1/latest/families.json</code></a></td><td>Family table with HWID sets</td></tr>
-    <tr><td><a href="/v1/latest/boards.json"><code>/v1/latest/boards.json</code></a></td><td>Board catalogue with chipset / socket</td></tr>
+    <tr><td><a href="/v1/latest/boards.json"><code>/v1/latest/boards.json</code></a></td><td>Board &amp; machine catalogue</td></tr>
     <tr><td><a href="/v1/latest/bios.json"><code>/v1/latest/bios.json</code></a></td><td>BIOS currency + AGESA water level</td></tr>
+    <tr><td><a href="/v1/latest/dashboard.json"><code>/v1/latest/dashboard.json</code></a></td><td>Everything this page renders</td></tr>
     <tr><td><code>/v1/latest/by-hwid/{hwid}.json</code></td><td>Point lookup by hardware ID</td></tr>
+    <tr><td><code>/v1/latest/by-board/{id}.json</code></td><td>Per-machine report (feeds the picker)</td></tr>
   </tbody>
 </table>
 </div>
@@ -381,27 +214,7 @@ below the water line.</p>
   <a class="btn" href="/v1/latest/water-level.json">{ } Raw JSON</a>
 </div>
 
-<p class="foot">
-  <b>What “latest” means.</b> The newest version any vendor has <b>published</b>,
-  not a judgement that it is good — a vendor may legitimately withhold a driver
-  that regressed. That caveat does not excuse a board sitting years behind on a
-  leaking driver.<br><br>
-  <b>The water line is a floor.</b> Since 2026-08-27 the index also tracks the
-  <b>Windows Update Catalog</b> (per HWID) and <b>silicon-vendor download
-  pages</b> (AMD, Intel) as upstream references: for 14 of 49 driver families
-  the upstream already ships newer than <i>any</i> board vendor lists — AMD's
-  own chipset driver is five point-releases ahead of every board vendor — so
-  every lag number here is a lower bound. Upstream rows are labelled
-  (<code>upstream_only</code> in water-level.json) and never counted against a
-  vendor.<br><br>
-  <b>Caveats.</b> Lag is measured against what vendors list, on Windows&nbsp;11 x64
-  only. Cross-vendor version reconciliation is imperfect where vendors use
-  incompatible numbering schemes for the same silicon (e.g. Realtek LAN), so a
-  few individual family water-levels are approximate; the aggregate vendor
-  metrics are robust to this. Method, sources, and every known wrinkle are in the
-  <a href="https://github.com/dtucny/WinDriverIndex/blob/main/doc/findings.md">findings doc</a>.<br><br>
-  <span class="pill">no affiliation with MSI, Gigabyte, ASRock, or ASUS</span>
-</p>
+<p class="foot" id="foot"></p>
 </div>
 
 <script>
@@ -416,6 +229,127 @@ below the water line.</p>
       try{localStorage.setItem('wdi-theme',next);}catch(e){}
     });
   })();
+
+(async function(){
+  const esc=t=>String(t??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const $=id=>document.getElementById(id);
+  let d, gen;
+  try{
+    const r=await fetch('/v1/latest/dashboard.json');
+    const j=await r.json(); d=j.data; gen=j.generated;
+  }catch(e){
+    $('tiles').innerHTML='<div class="tile"><div class="l">Could not load dashboard data.</div></div>';
+    return;
+  }
+  const LABEL={msi:'MSI',asus:'ASUS',gigabyte:'Gigabyte',asrock:'ASRock',lenovo:'Lenovo'};
+  const fmt=n=>n.toLocaleString('en-US');
+  const yr=dd=>dd>=365?(dd/365).toFixed(1)+' yr':dd+' d';
+  $('gen').textContent=(gen||'').slice(0,10);
+
+  const t=d.tiles;
+  $('tiles').innerHTML=[[fmt(t.boards),'machines indexed'],[t.vendors,'vendors'],
+    [t.families,'driver families'],[fmt(t.artefacts),'driver artefacts']]
+    .map(([n,l])=>`<div class="tile"><div class="n">${n}</div><div class="l">${l}</div></div>`).join('');
+
+  const order=Object.keys(d.vendors).sort((a,b)=>d.vendors[a].median_lag_days-d.vendors[b].median_lag_days);
+  const track=(val,max,cls)=>`<div class="track"><div class="fill ${cls}" style="width:${Math.min(100,100*val/max).toFixed(1)}%"></div></div>`;
+  const sev=v=>v<120?'good':v<365?'warn':'crit';
+  const sevp=p=>p<20?'good':p<60?'warn':'crit';
+  $('scorecard').innerHTML=order.map((v,i)=>{const x=d.vendors[v];return `
+    <div class="rank">
+      <div class="who"><b>${LABEL[v]||v}</b><span class="pos">#${i+1} · ${fmt(x.boards)} machines</span></div>
+      <div class="bars">
+        <span class="k">Median lag</span>${track(x.median_lag_days,730,sev(x.median_lag_days))}<span class="bval">${x.median_lag_days} d</span>
+        <span class="k">&gt;1 yr behind</span>${track(x.over_1yr_pct,100,sevp(x.over_1yr_pct))}<span class="bval">${x.over_1yr_pct}%</span>
+        <span class="k">Silent ≥2 yr</span>${track(x.silent_2yr_pct,100,sevp(x.silent_2yr_pct))}<span class="bval">${x.silent_2yr_pct}%</span>
+      </div>
+    </div>`;}).join('');
+
+  $('fullmetric').innerHTML=`<table><thead><tr><th>Vendor</th>
+    <th class="num">Median lag</th><th class="num">p90</th><th class="num">Worst</th>
+    <th class="num">&gt;1 yr behind</th><th class="num">Silent ≥2 yr</th></tr></thead><tbody>`+
+    order.map(v=>{const x=d.vendors[v];return `<tr><td class="vend">${LABEL[v]||v}</td>
+      <td class="num">${x.median_lag_days} d</td><td class="num">${x.p90_lag_days} d</td>
+      <td class="num">${yr(x.worst_lag_days)}</td>
+      <td class="num">${x.over_1yr} / ${x.boards} (${x.over_1yr_pct}%)</td>
+      <td class="num">${x.silent_2yr} (${x.silent_2yr_pct}%)</td></tr>`;}).join('')+'</tbody></table>';
+
+  const worstSilent=order.slice().sort((a,b)=>d.vendors[b].silent_2yr_pct-d.vendors[a].silent_2yr_pct)[0];
+  const ws=d.vendors[worstSilent];
+  $('tiernote').innerHTML=`<b>Two-tier support, quantified.</b> “Silent ≥2 yr”
+    counts machines whose listing has had no driver update of any kind in over
+    two years — not slow support, none. ${LABEL[worstSilent]} leads that column
+    with ${ws.silent_2yr} machines (${ws.silent_2yr_pct}% of its catalogue).`;
+
+  // heatmap (desktop vendors × sockets)
+  const socks=['AM4','AM5','LGA1700','LGA1851'];
+  const sockyr={AM4:'2017',AM5:'2022',LGA1700:'2021',LGA1851:'2024'};
+  const step=v=>v<250?'c1':v<500?'c2':v<900?'c3':v<1400?'c4':'c5';
+  const hv=Object.keys(d.heatmap).sort((a,b)=>(d.vendors[a].median_lag_days-d.vendors[b].median_lag_days));
+  $('heatwrap').innerHTML=`<table class="heat"><thead><tr><th></th>`+
+    socks.map(s=>`<th>${s}<br><small style="font-weight:400">${sockyr[s]}</small></th>`).join('')+
+    `</tr></thead><tbody>`+hv.map(v=>`<tr><th style="text-align:right">${LABEL[v]||v}</th>`+
+      socks.map(s=>{const c=d.heatmap[v][s];return c?`<td><div class="cell ${step(c.median_worst)}">${c.median_worst}<small>${c.boards} bd</small></div></td>`:'<td></td>';}).join('')+
+    '</tr>').join('')+`</tbody></table>
+    <div class="legend">median worst-lag days:
+      <i style="background:var(--h1)"></i><span>&lt;250</span>
+      <i style="background:var(--h2)"></i><span>250–500</span>
+      <i style="background:var(--h3)"></i><span>500–900</span>
+      <i style="background:var(--h4)"></i><span>900–1400</span>
+      <i style="background:var(--h5)"></i><span>1400+</span></div>`;
+
+  const chip=(g,lag)=>{const cls=lag===0?'g':lag<=365?'a':'r';
+    const val=lag===0?'✓':lag<=365?lag+'d':(lag/365).toFixed(1)+'yr';
+    return `<span class="chip ${cls}">${esc(g)}<b class="cv">${val}</b></span>`;};
+  const bw=(b,tag,cls,arrow)=>{
+    const hl=b.worst===0?'all current':b.worst<=365?`worst ${b.worst}d behind`:`${(b.worst/365).toFixed(1)} yr behind`;
+    return `<div class="bw"><div class="tag ${cls}">${arrow} ${tag}</div>
+      <div class="bname"><a href="/board.html#${b.board_id}" style="color:inherit">${esc(b.name)}</a>
+        <span class="sk">${esc(b.socket)}</span>
+        <span class="hl">${hl} · ${b.families} families</span></div>
+      <div class="chips">${b.chips.map(([g,l])=>chip(g,l)).join('')}</div></div>`;};
+  $('vgrid').innerHTML=order.map(v=>{const x=d.best_worst[v];if(!x)return '';
+    return `<div class="card vblock"><div class="vhead">${LABEL[v]||v}
+      <span class="pos">${fmt(d.vendors[v].boards)} machines</span></div>
+      ${bw(x.best,'Best kept','good','▲')}${bw(x.worst,'Most neglected','crit','▼')}</div>`;}).join('');
+
+  const aw=d.bios.agesa_water;
+  $('biosnote').innerHTML=`Unlike drivers, <b>BIOS pipelines stay alive</b> — the
+    2025/26 security waves (fTPM, microcode, AGESA) pushed updates to nearly
+    every machine, including ones whose driver listings were abandoned years
+    ago. On AMD boards the vendors all wrap the same AMD AGESA bundle; the
+    current water level is <b>AGESA ${esc(aw.AM5?aw.AM5.version:'—')}</b> (AM5)
+    and <b>${esc(aw.V2?aw.V2.version:'—')}</b> (AM4). Full data in
+    <a href="/v1/latest/bios.json">bios.json</a>.`;
+  const bo=Object.keys(d.bios.vendors).sort((a,b)=>
+    (d.bios.vendors[a].median_days_since_bios??1e9)-(d.bios.vendors[b].median_days_since_bios??1e9));
+  $('biostable').innerHTML=`<table><thead><tr><th>Vendor</th>
+    <th class="num">Median since last BIOS</th><th class="num">BIOS within 1 yr</th>
+    <th class="num">Silent ≥2 yr</th><th class="num">AMD boards on newest AGESA</th></tr></thead><tbody>`+
+    bo.map(v=>{const x=d.bios.vendors[v];return `<tr><td class="vend">${LABEL[v]||v}</td>
+      <td class="num">${x.median_days_since_bios??'—'} d</td>
+      <td class="num">${x.bios_within_1yr_pct??'—'}%</td>
+      <td class="num">${x.bios_silent_2yr_pct??'—'}%</td>
+      <td class="num">${x.amd_boards_at_agesa_water_pct??'—'}${x.amd_boards_at_agesa_water_pct!=null?'%':''}</td></tr>`;}).join('')+
+    '</tbody></table>';
+
+  $('foot').innerHTML=`<b>The water line is a floor.</b> The index tracks the
+    Windows Update Catalog and AMD/Intel download pages as upstream references:
+    for ${d.upstream.ahead} of ${d.upstream.total} driver families the upstream
+    already ships newer than <i>any</i> hardware vendor lists, so every lag
+    number here is a lower bound. Upstream rows are labelled and never counted
+    against a vendor.<br><br>
+    <b>What “latest” means.</b> The newest version any source has <b>published</b>,
+    not a judgement that it is good — a vendor may legitimately withhold a driver
+    that regressed. That caveat does not excuse a machine sitting years behind on
+    a leaking driver.<br><br>
+    <b>Caveats.</b> Lag is measured against published listings, Windows&nbsp;11
+    x64 only. Cross-vendor version reconciliation is imperfect where vendors use
+    incompatible numbering for the same silicon; multi-silicon combo packages
+    (Lenovo) are tracked as their own families. Method, sources, and every known
+    wrinkle: <a href="https://github.com/dtucny/WinDriverIndex/blob/main/doc/findings.md">findings</a>.<br><br>
+    <span class="pill">no affiliation with MSI, Gigabyte, ASRock, ASUS, or Lenovo</span>`;
+})();
 </script>
 </body>
 </html>

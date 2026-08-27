@@ -54,6 +54,11 @@ published data schema is versioned separately (see `schema_version` in every
   Lenovo's `/consumer/` URLs no longer trip Gigabyte's ME pattern; Intel
   PROSet/Killer/Realtek bundle relationships whitelisted in the INF check.
 
+- **Dashboard is now data-driven**: `publish` emits `dashboard.json` with
+  every figure the landing page shows, and the page renders client-side from
+  it — hardcoded-number staleness is structurally gone. Lenovo appears in
+  all views; best/worst entries deep-link to the picker.
+
 ### Fixed
 - Lag no longer reads "current" for behind versions that a vendor re-listed
   after the water rose: the publication-gap formula went negative and was
