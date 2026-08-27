@@ -59,6 +59,12 @@ published data schema is versioned separately (see `schema_version` in every
   it — hardcoded-number staleness is structurally gone. Lenovo appears in
   all views; best/worst entries deep-link to the picker.
 
+- **Realtek LAN split by silicon generation** (8168 GbE / 8125 2.5GbE /
+  8126 5GbE) via the HWID-anchor machinery — validated by Realtek's own
+  numbering (1168.29.50.202 and 1125.29.50.202 are the same build for two
+  chips). **NVIDIA VBIOS/firmware split from the driver family** (95.x vs
+  32.x lines).
+
 ### Fixed
 - Water-level integrity hardening: a majority-version-line guard stops
   vendor mislabels from topping a family with a foreign scheme (ASUS ships

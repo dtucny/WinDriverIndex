@@ -126,6 +126,9 @@ RULES: list[tuple[str, str, str, list[str]]] = [
     ("Thunderbolt", "intel", "usb", [r"thunderbolt", r"\btbt\b"]),
 
     ("Intel SST", "intel", "audio", [r"smart sound", r"\bsst\b"]),
+    # GPU firmware/VBIOS updates version on a different line (95.x) than the
+    # drivers (32.x) and must not share a family with them.
+    ("GPU VBIOS", "nvidia", "graphics", [r"\bvbios\b", r"gpu firmware"]),
     ("NVIDIA Graphics", "nvidia", "graphics",
      [r"n?vidia", r"n?vdia", r"geforce", r"\bquadro\b"]),
     ("Intel ISH", "intel", "chipset", [r"sensor hub", r"\bish\b"]),
@@ -177,7 +180,7 @@ _PREINSTALL = re.compile(r"preinstall|bootdisk|sata floppy|sata/floppy",
 # Artefacts without INF evidence adopt the subfamily of an evidenced artefact
 # with the same normalised version, then fall back to version-major lines.
 SPLIT_PARENTS = {"MediaTek Wi-Fi", "MediaTek Bluetooth",
-                 "AMD Wi-Fi", "AMD Bluetooth"}
+                 "AMD Wi-Fi", "AMD Bluetooth", "Realtek LAN"}
 SUBFAMILIES: list[tuple[str, str, str, set[str]]] = [
     ("MediaTek Wi-Fi 7", "mediatek", "wlan",
      {r"PCI\VEN_14C3&DEV_0717", r"PCI\VEN_14C3&DEV_0738"}),
@@ -188,10 +191,25 @@ SUBFAMILIES: list[tuple[str, str, str, set[str]]] = [
      {r"USB\VID_0489&PID_E0FA", r"USB\VID_0489&PID_E10F"}),
     ("MediaTek Bluetooth (Wi-Fi 6E)", "mediatek", "bluetooth",
      {r"USB\VID_0489&PID_E0C8", r"USB\VID_0489&PID_E0CD"}),
+    # Realtek Ethernet generations: 8111/8168 GbE vs 8125 2.5GbE vs 8126 5GbE
+    # — distinct silicon, interleaving version schemes (1168.x vs
+    # 10.x/11.x/1125.x vs 1126.x).
+    ("Realtek 8168 LAN", "realtek", "lan",
+     {r"PCI\VEN_10EC&DEV_8168", r"PCI\VEN_10EC&DEV_8111"}),
+    ("Realtek 8125 LAN", "realtek", "lan", {r"PCI\VEN_10EC&DEV_8125"}),
+    ("Realtek 8126 LAN", "realtek", "lan", {r"PCI\VEN_10EC&DEV_8126"}),
 ]
 SPLIT_VERSION_FALLBACK: dict[str, dict[int, str]] = {
     "MediaTek Wi-Fi": {5: "MediaTek Wi-Fi 7", 3: "MediaTek Wi-Fi 6E"},
     "AMD Wi-Fi": {5: "MediaTek Wi-Fi 7", 3: "MediaTek Wi-Fi 6E"},
+    # majors: 1168=8168's ASUS/Lenovo scheme; 10/11/1125 are all 8125 lines
+    # (Realtek official 10.x/11.x, ASUS 1125.x); 1126/1127=8126; 1..9=legacy GbE
+    "Realtek LAN": {1168: "Realtek 8168 LAN", 1166: "Realtek 8168 LAN",
+                    1125: "Realtek 8125 LAN",
+                    1126: "Realtek 8126 LAN", 1127: "Realtek 8126 LAN",
+                    10: "Realtek 8125 LAN", 11: "Realtek 8125 LAN",
+                    1: "Realtek 8168 LAN", 7: "Realtek 8168 LAN",
+                    8: "Realtek 8168 LAN", 9: "Realtek 8168 LAN"},
 }
 
 # Family pairs that legitimately share INFs because one package bundles the
@@ -217,6 +235,9 @@ BUNDLE_OK: set[frozenset] = {
         ("Killer LAN", "Intel Bluetooth"),
         # Combined Realtek LAN+WLAN packages exist on several boards.
         ("Realtek Wi-Fi", "Realtek LAN"),
+        ("Realtek Wi-Fi", "Realtek 8168 LAN"),
+        ("Realtek Wi-Fi", "Realtek 8125 LAN"),
+        ("Realtek Wi-Fi", "Realtek 8126 LAN"),
         # Both MediaTek BT generations bundle the same LE-audio ACX INF.
         ("MediaTek Bluetooth (Wi-Fi 7)", "MediaTek Bluetooth (Wi-Fi 6E)"),
         # Gigabyte's 'ITE USB driver' package ships the Realtek UcmCx INF.
