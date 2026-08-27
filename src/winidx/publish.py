@@ -54,7 +54,9 @@ def run(conn: sqlite3.Connection, *, log=print) -> dict:
     water = _water_level(conn, families, effective)
     board_lag, vendor_lag = _lag(conn, families, water, effective)
 
-    emit("bios.json", bios.compute(conn))
+    bios_data = bios.compute(conn)
+    bios_per_board = bios_data.pop("per_board")
+    emit("bios.json", bios_data)
     emit("families.json", list(families.values()))
     emit("artefacts.json", artefacts)
     emit("boards.json", boards)
@@ -62,9 +64,11 @@ def run(conn: sqlite3.Connection, *, log=print) -> dict:
     emit("vendor-lag.json", vendor_lag)
 
     n_hwid = _emit_by_hwid(conn, out, families, water, generated)
+    n_bb = _emit_by_board(conn, out, families, water, board_lag, bios_per_board,
+                          effective, generated)
 
     log(f"publish: {len(families)} families, {len(artefacts)} artefacts, "
-        f"{len(boards)} boards, {n_hwid} hwid files -> {out}")
+        f"{len(boards)} boards, {n_hwid} hwid files, {n_bb} board files -> {out}")
     return {"families": len(families), "artefacts": len(artefacts),
             "boards": len(boards), "hwids": n_hwid, "failed": 0}
 
@@ -102,7 +106,8 @@ def _water_level(conn, families, effective) -> list[dict]:
     result = []
     for fid, fam in sorted(families.items()):
         rows = [r for r in conn.execute(
-            "SELECT artefact_id, version_raw, release_date, vendor, source_type"
+            "SELECT artefact_id, version_raw, release_date, vendor, source_type,"
+            " first_seen"
             " FROM artefact WHERE family_id = ? AND kind = 'driver'"
             " AND is_beta = 0", (fid,)).fetchall()
             if effective[r["artefact_id"]].tuple]
@@ -127,6 +132,11 @@ def _water_level(conn, families, effective) -> list[dict]:
         top_tuple = effective[top["artefact_id"]].tuple
         at_top = [r for r in rows if effective[r["artefact_id"]].tuple == top_tuple]
         dates = [r["release_date"] for r in at_top if r["release_date"]]
+        if not dates:
+            # dateless upstream sources (silicon pages): fall back to when the
+            # crawl first observed the version — an upper bound on its age
+            # that tightens as weekly runs accumulate.
+            dates = [r["first_seen"] for r in at_top if r["first_seen"]]
         result.append({
             "family_id": fid, "family": fam["name"],
             "version": effective[top["artefact_id"]].raw,
@@ -175,7 +185,8 @@ def _lag(conn, families, water, effective) -> tuple[list[dict], list[dict]]:
         else:
             lag = None
         entry = {"board_id": board_id, "family_id": fid,
-                 "listed_version": r["version_raw"], "lag_days": lag}
+                 "listed_version": effective[r["artefact_id"]].raw,
+                 "listed_date": r["listed_date"], "lag_days": lag}
         board_lag.append(entry)
         if lag is not None:
             per_board[board_id].append(lag)
@@ -215,4 +226,46 @@ def _emit_by_hwid(conn, out, families, water, generated) -> int:
                  "water_level": w, "known_versions": known},
                 indent=1, ensure_ascii=False) + "\n")
             n += 1
+    return n
+
+
+def _emit_by_board(conn, out, families, water, board_lag, bios_per_board,
+                   effective, generated) -> int:
+    """One JSON per board for the picker page — mirrors the by-hwid pattern."""
+    (out / "by-board").mkdir(parents=True, exist_ok=True)
+    level = {w["family_id"]: w for w in water}
+    boards = {r["board_id"]: dict(r) for r in conn.execute(
+        "SELECT board_id, vendor, name, slug, chipset, socket, support_url"
+        " FROM board")}
+    from collections import defaultdict as _dd
+    per: dict[int, list] = _dd(list)
+    for e in board_lag:
+        per[e["board_id"]].append(e)
+    n = 0
+    for bid, entries in per.items():
+        b = boards[bid]
+        fams = []
+        for e in sorted(entries, key=lambda x: families[x["family_id"]]["name"]):
+            fam = families[e["family_id"]]
+            w = level[e["family_id"]]
+            fams.append({
+                "family": fam["name"], "component": fam["component"],
+                "listed_version": e["listed_version"],
+                "listed_date": e["listed_date"],
+                "water_version": w["version"],
+                "water_first_published": w["first_published"],
+                "upstream_only": w["upstream_only"],
+                "lag_days": e["lag_days"],
+            })
+        payload = {
+            "schema_version": SCHEMA_VERSION, "generated": generated,
+            "caveat": CAVEAT,
+            "board": {k: b[k] for k in ("board_id", "vendor", "name", "slug",
+                                        "chipset", "socket", "support_url")},
+            "bios": bios_per_board.get(bid),
+            "families": fams,
+        }
+        (out / "by-board" / f"{bid}.json").write_text(
+            json.dumps(payload, indent=1, ensure_ascii=False) + "\n")
+        n += 1
     return n

@@ -129,7 +129,18 @@ def compute(conn: sqlite3.Connection, today: dt.date | None = None) -> dict:
                 round(100 * at_water / len(tracked)) if tracked else None,
         }
 
+    per_board_out = {
+        bid: {
+            "last_bios": b["last"],
+            "agesa": (b["agesa"][0] + (f" Patch {b['agesa'][1]}" if b["agesa"][1] else "")
+                      if b["agesa"] else None),
+            "agesa_line": b["agesa_line"],
+            "agesa_at_water": (bool(b["agesa"])
+                               and agesa_key(*b["agesa"]) >= water[b["agesa_line"]][0])
+                              if b["agesa"] else None,
+        } for bid, b in per_board.items()}
     return {
+        "per_board": per_board_out,
         "vendors": vendors,
         "agesa_water": {
             line: {"version": ver, "patch": patch or None}

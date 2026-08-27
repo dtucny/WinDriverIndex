@@ -37,6 +37,13 @@ published data schema is versioned separately (see `schema_version` in every
   abandoned — Gigabyte inverts its driver reputation (28-day median, 96% of
   AMD boards on newest AGESA); ASRock trails again (12% BIOS-silent ≥2 yr).
 
+- **“How’s my motherboard doing?” board picker** (`/board.html`): search
+  any of the 1,124 boards, get a verdict, per-family listed-vs-newest table
+  with component grouping and upstream tags, BIOS/AGESA status, and
+  shareable deep links. Backed by new per-board publish output
+  (`/v1/latest/by-board/{id}.json`); dateless upstream water levels fall
+  back to first-observed dates for lag.
+
 ### Fixed
 - Water level no longer misreports families whose packages bundle other
   components: the INF-DriverVer override is now confined to the listing's
