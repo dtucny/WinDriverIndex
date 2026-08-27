@@ -44,6 +44,16 @@ published data schema is versioned separately (see `schema_version` in every
   (`/v1/latest/by-board/{id}.json`); dateless upstream water levels fall
   back to first-observed dates for lag.
 
+- **Lenovo (Think + Legion/LOQ) in the index**: 619 machines, 15,732
+  listings via the three-layer public catalog crawl; laptop-era families
+  added (NVIDIA Graphics, WWAN, Camera, Card/Fingerprint Reader, ISH, OEM
+  audio). Combo multi-vendor "WLAN Driver" bundles stay unmatched by design.
+- **Scope-doubling recrawl** after the form-factor-suffix fix: the published
+  index now covers 2,724 machines / 64 families / 6,786 driver artefacts.
+- Rule pass now clears stale family assignments when a row stops matching;
+  Lenovo's `/consumer/` URLs no longer trip Gigabyte's ME pattern; Intel
+  PROSet/Killer/Realtek bundle relationships whitelisted in the INF check.
+
 ### Fixed
 - Water level no longer misreports families whose packages bundle other
   components: the INF-DriverVer override is now confined to the listing's

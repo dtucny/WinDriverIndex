@@ -26,7 +26,8 @@ RULES: list[tuple[str, str, str, list[str]]] = [
     # 'chipset/amd/npu' path whose normalised text contains 'chipset amd',
     # which the chipset rule would otherwise claim.
     ("AMD Graphics", "amd", "graphics",
-     [r"amd graphics", r"amd apu", r"\bapu\b", r"amd vga"]),
+     [r"amd graphics", r"amd apu", r"\bapu\b", r"amd vga",
+      r"amd.{0,10}graphic"]),
     ("AMD RAID", "amd", "storage",
      # 'md raid' covers ASUS's typo'd 'MD RAID Driver' listings. A generic
      # 'raid driver' pattern is a trap: it caught Intel RST via MSI's
@@ -75,7 +76,8 @@ RULES: list[tuple[str, str, str, list[str]]] = [
      [r"realtek.*wi-?fi", r"realtek.*wlan", r"wifi rtk", r"rtl88\d+.*wifi",
       r"rtk \d{4}\w* wifi", r"azurewave"]),
     ("Realtek LAN", "realtek", "lan",
-     [r"realtek.*(pci-e ethernet|lan)", r"realtek8125", r"realtek8126"]),
+     [r"realtek.*(pci-e ethernet|lan)", r"realtek8125", r"realtek8126",
+      r"realtek.*ethernet"]),
 
     ("Intel I225/I226 LAN", "intel", "lan", [r"i22[56]"]),
     ("Intel I211 LAN", "intel", "lan", [r"i211"]),
@@ -96,24 +98,37 @@ RULES: list[tuple[str, str, str, list[str]]] = [
     ("Intel Chipset INF", "intel", "chipset",
      [r"intel inf", r"infupdate", r"intel chipset", r"intel/inf/"]),
     ("Intel ME", "intel", "chipset",
-     [r"management engine", r"\bconsumer\b", r"intel me\b", r"\bmei\b"]),
+     [r"management engine", r"\d+ consumer \d", r"intel me\b", r"\bmei\b"]),
     ("Intel IPF", "intel", "chipset", [r"innovation platform"]),
     ("Intel GNA", "intel", "npu", [r"gna"]),
     ("Intel NPU", "intel", "npu", [r"intel npu", r"neural processing"]),
-    ("Intel DTT", "intel", "chipset", [r"dynamic tuning", r"\bdtt\b"]),
+    ("Intel DTT", "intel", "chipset", [r"dynamic tuning", r"\bdtt\b", r"\bdptf\b"]),
     ("Intel Serial I/O", "intel", "chipset", [r"serial i/?o", r"serialio"]),
     ("Intel HID Event Filter", "intel", "chipset", [r"hid event", r"\bhid\b"]),
     ("Intel PMT", "intel", "chipset", [r"platform monitoring", r"\bpmt\b"]),
     ("Intel Platform Performance", "intel", "chipset",
      [r"platform performance", r"\bippp\b"]),
     ("Intel VGA", "intel", "graphics",
-     [r"intel s?vga", r"intel graphic", r"graphicdch"]),
+     [r"intel s?vga", r"intel graphic", r"graphicdch",
+      r"intel.{0,16}graphics driver"]),
     # VMD is packaged inside the RST line (iaStorVD.inf), not a separate family
     ("Intel RST", "intel", "storage",
-     [r"rapid storage", r"irst", r"\brst\b", r"\bvmd\b", r"intel/sata/"]),
+     [r"rapid storage", r"irste?\b", r"\brste?\b", r"\bvmd\b", r"intel/sata/"]),
     ("Thunderbolt", "intel", "usb", [r"thunderbolt", r"\btbt\b"]),
 
     ("Intel SST", "intel", "audio", [r"smart sound", r"\bsst\b"]),
+    ("NVIDIA Graphics", "nvidia", "graphics",
+     [r"nvidia", r"geforce", r"\bquadro\b"]),
+    ("Intel ISH", "intel", "chipset", [r"sensor hub", r"\bish\b"]),
+    ("Intel WWAN", "intel", "wwan", [r"intel.*wwan", r"xmm7\d+"]),
+    ("WWAN (module vendors)", "oem", "wwan",
+     [r"wwan", r"quectel", r"fibocom", r"\bwan driver\b"]),
+    ("Camera", "oem", "camera", [r"camera"]),
+    ("Card Reader", "oem", "usb", [r"card reader", r"smartcard"]),
+    ("Fingerprint Reader", "oem", "usb",
+     [r"fingerprint", r"goodix", r"synaptics.*(fp|fingerprint)"]),
+    ("Laptop OEM Audio", "oem", "audio",
+     [r"thinkpad audio", r"senary", r"conexant", r"cirrus", r"fortemedia"]),
     ("ASPEED Graphics", "aspeed", "graphics", [r"aspeed"]),
     ("AMI Remote NDIS", "ami", "lan", [r"remote ndis"]),
     ("LHDC Audio", "oem", "audio", [r"lhdc"]),
@@ -173,6 +188,19 @@ BUNDLE_OK: set[frozenset] = {
         ("Killer LAN", "Intel I225/I226 LAN"),
         ("MediaTek LE Audio", "MediaTek Bluetooth (Wi-Fi 7)"),
         ("MediaTek LE Audio", "MediaTek Bluetooth (Wi-Fi 6E)"),
+        # Intel PROSet-style LAN packages carry INFs for every Intel NIC, so
+        # the generic family legitimately shares INFs with the per-silicon ones.
+        ("Intel LAN", "Intel I211 LAN"),
+        ("Intel LAN", "Intel I219 LAN"),
+        ("Intel LAN", "Intel I225/I226 LAN"),
+        # Killer suites bundle Intel Bluetooth alongside LAN/Wi-Fi.
+        ("Killer LAN", "Intel Bluetooth"),
+        # Combined Realtek LAN+WLAN packages exist on several boards.
+        ("Realtek Wi-Fi", "Realtek LAN"),
+        # Both MediaTek BT generations bundle the same LE-audio ACX INF.
+        ("MediaTek Bluetooth (Wi-Fi 7)", "MediaTek Bluetooth (Wi-Fi 6E)"),
+        # Gigabyte's 'ITE USB driver' package ships the Realtek UcmCx INF.
+        ("ITE", "Realtek UCM"),
         # Realtek HD-audio packages bundle the USB-audio component; Gigabyte
         # ships combined WLAN+BT packages that carry both radios' INFs.
         ("Realtek Audio", "Realtek USB Audio"),
@@ -212,6 +240,10 @@ def run(conn: sqlite3.Connection, *, log=print) -> dict:
         if not hit:
             unmatched.append((row["vendor"], row["vendor_artefact_id"],
                               row["description_text"]))
+            # a previously-assigned row that no longer matches any rule must
+            # not keep its stale family (the evidence pass may re-fill it)
+            conn.execute("UPDATE artefact SET family_id = NULL"
+                         " WHERE artefact_id = ?", (row["artefact_id"],))
             continue
         name, sv, comp = hit
         if _PREINSTALL.search(text):
