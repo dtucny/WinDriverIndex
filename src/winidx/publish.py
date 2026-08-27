@@ -115,6 +115,18 @@ def _water_level(conn, families, effective) -> list[dict]:
             if effective[r["artefact_id"]].tuple]
         if not rows or "(preinstall)" in fam["name"]:
             continue
+        # Slash-joined multi-version strings (Lenovo combo packages) parse to
+        # one arbitrary member's tuple; they may not SET a family's water
+        # where clean single-version rows exist (a combo's 6102.x Wi-Fi
+        # member was topping Realtek LAN). Families that are combo-only
+        # (Notebook *) keep their combo rows.
+        import re as _re
+        def _is_combo(r):
+            raw = r["version_raw"] or ""
+            return "/" in raw and len(_re.findall(r"\d+(?:\.\d+){2,}", raw)) >= 2
+        clean = [r for r in rows if not _is_combo(r)]
+        if clean:
+            rows = clean
         top = max(rows, key=lambda r: versions.compare_key(effective[r["artefact_id"]]))
         # Best version any *board vendor* lists, for the upstream-gap metric.
         vend_rows = [r for r in rows if r["source_type"] == "vendor"]
@@ -131,6 +143,25 @@ def _water_level(conn, families, effective) -> list[dict]:
             td, vd = top["release_date"], vend_top["release_date"]
             if not td or (vd and vd >= td):
                 top = vend_top
+        # Majority-line guard: occasional vendor mislabels put a foreign
+        # version scheme atop a family (ASUS lists graphics 31.0.101.x and
+        # chipset 10.1.x packages titled 'Intel GNA Driver'). When the top's
+        # MAJOR isn't the family's dominant line (and the family has real
+        # mass), the dominant line's top wins unless the outlier is
+        # date-newer — genuine scheme migrations carry the newest dates,
+        # stale one-off mislabels don't.
+        from collections import Counter as _Counter
+        majors = _Counter(effective[r["artefact_id"]].tuple[0] for r in rows)
+        dom = majors.most_common(1)[0][0]
+        if (top["source_type"] == "vendor"
+                and effective[top["artefact_id"]].tuple[0] != dom
+                and majors[dom] >= 3):
+            cand = max((r for r in rows
+                        if effective[r["artefact_id"]].tuple[0] == dom),
+                       key=lambda r: versions.compare_key(effective[r["artefact_id"]]))
+            td, cd = top["release_date"], cand["release_date"]
+            if cd and (not td or cd > td):
+                top = cand
         top_tuple = effective[top["artefact_id"]].tuple
         at_top = [r for r in rows if effective[r["artefact_id"]].tuple == top_tuple]
         dates = [r["release_date"] for r in at_top if r["release_date"]]

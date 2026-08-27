@@ -60,6 +60,13 @@ published data schema is versioned separately (see `schema_version` in every
   all views; best/worst entries deep-link to the picker.
 
 ### Fixed
+- Water-level integrity hardening: a majority-version-line guard stops
+  vendor mislabels from topping a family with a foreign scheme (ASUS ships
+  graphics 31.0.101.x and chipset 10.1.x packages titled 'Intel GNA Driver',
+  which had poisoned 639 boards' worst-lag); slash-combo versions can no
+  longer set water where clean rows exist; Lenovo's 'Wireless LAN' phrasing
+  routes to Realtek Wi-Fi instead of Realtek LAN. Intel GNA's water is now
+  3.5.0.1611, agreed by five vendors.
 - Lag no longer reads "current" for behind versions that a vendor re-listed
   after the water rose: the publication-gap formula went negative and was
   clamped to 0 (found via MSI re-listing AMD RAID 9.3.3.218 days after

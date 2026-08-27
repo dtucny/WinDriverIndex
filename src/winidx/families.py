@@ -73,8 +73,10 @@ RULES: list[tuple[str, str, str, list[str]]] = [
      [r"realtek.*blue", r"realtek bt driver", r"rtl88\d+.*bt driver", r"bt rtk",
       r"rtk \d{4}\w* (bluetooth|bt)\b", r"azurewave.*bluetooth"]),
     ("Realtek Wi-Fi", "realtek", "wlan",
-     [r"realtek.*wi-?fi", r"realtek.*wlan", r"wifi rtk", r"rtl88\d+.*wifi",
-      r"rtk \d{4}\w* wifi", r"azurewave"]),
+     # 'wireless' must be claimed here before the LAN rule's '.*lan' can eat
+     # Lenovo's 'Realtek 8922AE Wireless LAN Driver' phrasing
+     [r"realtek.*wi-?fi", r"realtek.*wlan", r"realtek.*wireless", r"wifi rtk",
+      r"rtl88\d+.*wifi", r"rtk \d{4}\w* wifi", r"azurewave"]),
     ("Realtek LAN", "realtek", "lan",
      [r"realtek.*(pci-e ethernet|lan)", r"realtek8125", r"realtek8126",
       r"realtek.*ethernet", r"\b1168\.\d"]),
@@ -100,6 +102,9 @@ RULES: list[tuple[str, str, str, list[str]]] = [
     ("Intel ME", "intel", "chipset",
      [r"management engine", r"\d+ consumer \d", r"intel me\b", r"\bmei\b"]),
     ("Intel IPF", "intel", "chipset", [r"innovation platform"]),
+    # must precede the generic GNA rule: ASUS's 'Intel GNA Driver V31.0.101.x'
+    # is a graphics-scheme version (see Intel VGA note below)
+    ("Intel VGA", "intel", "graphics", [r"gna driver v3\d\.0\.101"]),
     ("Intel GNA", "intel", "npu", [r"gna"]),
     ("Intel NPU", "intel", "npu", [r"intel npu", r"neural processing"]),
     ("Intel DTT", "intel", "chipset", [r"dynamic tuning", r"\bdtt\b", r"\bdptf\b"]),
@@ -109,8 +114,12 @@ RULES: list[tuple[str, str, str, list[str]]] = [
     ("Intel Platform Performance", "intel", "chipset",
      [r"platform performance", r"\bippp\b"]),
     ("Intel VGA", "intel", "graphics",
+     # ASUS mislabels at least one graphics package 'Intel GNA Driver
+     # V31.0.101.x' — 3x.0.101.x is unambiguously the graphics scheme, and
+     # left in GNA it poisons that family's water level (and, via the
+     # behind-since-water floor, 639 boards' worst-lag).
      [r"intel s?vga", r"intel graphic", r"graphicdch",
-      r"intel.{0,16}graphics driver"]),
+      r"intel.{0,16}graphics driver", r"gna driver v3\d\.0\.101"]),
     # VMD is packaged inside the RST line (iaStorVD.inf), not a separate family
     ("Intel RST", "intel", "storage",
      [r"rapid storage", r"irste?\b", r"\brste?\b", r"\bvmd\b", r"intel/sata/"]),
@@ -192,6 +201,8 @@ BUNDLE_OK: set[frozenset] = {
     frozenset(p) for p in [
         ("Intel Chipset INF", "Intel Serial I/O"),
         ("Intel Chipset INF", "Intel GNA"),
+        # Intel iGPU driver packages bundle GNA INFs too
+        ("Intel VGA", "Intel GNA"),
         ("Intel DTT", "Intel IPF"),
         ("Killer LAN", "Intel Wi-Fi"),
         ("Killer LAN", "Intel I225/I226 LAN"),
