@@ -120,6 +120,16 @@ published data schema is versioned separately (see `schema_version` in every
   the picker shows "N of M — keep typing" when results are capped; publish
   clears stale by-board files.
 
+- **Graphics cards (v0.3)**: 1,343 AIB cards from Gigabyte (385), MSI (477)
+  and ASUS (481) — RTX 30/40/50, RX 6000–9000, Arc, era-gated like the
+  platforms — with NVIDIA GeForce (616.56) and Intel Arc added as upstream
+  silicon sources alongside Adrenalin. Card listings join the existing GPU
+  driver families, so every AIB support page is measured against what the
+  GPU vendor shipped yesterday. VBIOS listings land in the GPU VBIOS family.
+  ASRock's Arc cards are a noted follow-up (separate page structure). Known
+  cosmetic quirk: one Dell manifest titles a GeForce driver with an
+  Intel-scheme version, nudging the NVIDIA same-line footnote.
+
 ### Fixed
 - Water-level integrity hardening: a majority-version-line guard stops
   vendor mislabels from topping a family with a foreign scheme (ASUS ships

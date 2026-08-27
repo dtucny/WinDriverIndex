@@ -80,6 +80,40 @@ def crawl(conn: sqlite3.Connection, client: PoliteClient, run_date: str,
                 n_artefacts += 1
                 n_new += recorded
         conn.commit()
+    # graphics cards: product line 3, same API and tab shape
+    gpu_products = client.get(
+        f"{API}/Support/global/DownloadCenter/3/GetProducts",
+        snapshot="gpu_products.json").json()["data"]
+    gpus = []
+    for p in gpu_products:
+        hit = scope.extract_gpu(p["productName"])
+        if hit:
+            gpus.append((p, *hit))
+    log(f"gigabyte: {len(gpu_products)} gpu products, {len(gpus)} in scope")
+    if limit:
+        gpus = gpus[:limit]
+    for product, chip, gvendor in gpus:
+        pid = product["productId"]
+        try:
+            tab = client.get(
+                f"{API}/Consumer/global/GetProductTabDataAsync/Support/{pid}",
+                snapshot=f"gpu_{pid}.json").json()["data"]
+        except Exception as exc:
+            log(f"  gigabyte: gpu skipped {product['productName']}: {str(exc)[:50]}")
+            continue
+        slug = re.sub(r"\s+", "-", re.sub(r"[().™]", "", product["productName"])).strip("-")
+        board_id = db.upsert_board(
+            conn, run_date, vendor=VENDOR, vendor_product_id=str(pid),
+            name=product["productName"].replace("™", ""), slug=slug,
+            chipset=chip, product_type="graphics-card",
+            support_url=f"https://www.gigabyte.com/Graphics-Card/{slug}/support")
+        n_boards += 1
+        for entry, kind in _iter_download_entries(tab):
+            recorded = _record_artefact(conn, run_date, board_id, entry, kind)
+            if recorded is not None:
+                n_artefacts += 1
+                n_new += recorded
+        conn.commit()
     log(f"gigabyte: {n_boards} boards, {n_artefacts} listings, {n_new} new artefacts")
     return {"boards": n_boards, "listings": n_artefacts, "new_artefacts": n_new}
 

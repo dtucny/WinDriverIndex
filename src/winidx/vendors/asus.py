@@ -25,6 +25,7 @@ BIOS_API = "https://www.asus.com/support/api/product.asmx/GetPDBIOS"
 CDN = "https://dlcdnets.asus.com"
 WEBSITE = "ph"          # region; content believed region-identical (spec §4.4)
 MB_TYPEID = 1156        # motherboards
+GPU_TYPEID = 1233       # graphics cards
 OSID_WIN11 = 52
 
 _BETA = re.compile(r"beta", re.IGNORECASE)
@@ -83,22 +84,69 @@ def crawl(conn: sqlite3.Connection, client: PoliteClient, run_date: str,
                 n_artefacts += 1
                 n_new += recorded
         conn.commit()
+    gpu_products = _enumerate_products(client, typeid=GPU_TYPEID, prefix="gpu_")
+    gpus = []
+    for p in gpu_products.values():
+        hit = scope.extract_gpu(p["PDName"])
+        if hit:
+            gpus.append((p, *hit))
+    log(f"asus: {len(gpu_products)} gpu products, {len(gpus)} in scope")
+    if limit:
+        gpus = gpus[:limit]
+    for product, chip, gvendor in gpus:
+        pdid = product["PDId"]
+        board_id = db.upsert_board(
+            conn, run_date, vendor=VENDOR, vendor_product_id=str(pdid),
+            name=product["PDName"], chipset=chip, product_type="graphics-card",
+            support_url="https://www.asus.com/supportonly/"
+                        f"{product['PDName'].replace(' ', '%20')}/helpdesk_download/")
+        n_boards += 1
+        try:
+            data = client.get(DRIVERS_API, params={
+                "website": WEBSITE, "model": product["PDName"],
+                "pdhashedid": product.get("PDHashedId") or "",
+                "pdid": pdid, "cpu": "", "osid": OSID_WIN11},
+                snapshot=f"gpu_drivers_{pdid}.json").json()
+        except Exception as exc:
+            log(f"  asus: gpu skipped {product['PDName']}: {str(exc)[:50]}")
+            data = {}
+        for category, entry in _iter_files(data):
+            recorded = _record_artefact(conn, run_date, board_id, entry, category)
+            if recorded is not None:
+                n_artefacts += 1
+                n_new += recorded
+        try:
+            bios = client.get(BIOS_API, params={
+                "website": WEBSITE, "model": product["PDName"],
+                "pdhashedid": product.get("PDHashedId") or "",
+                "pdid": pdid, "cpu": ""},
+                snapshot=f"gpu_bios_{pdid}.json").json()
+        except Exception:
+            bios = {}
+        for category, entry in _iter_files(bios):
+            recorded = _record_artefact(conn, run_date, board_id, entry,
+                                        category, kind_override="bios")
+            if recorded is not None:
+                n_artefacts += 1
+                n_new += recorded
+        conn.commit()
     log(f"asus: {n_boards} boards, {n_artefacts} listings, {n_new} new artefacts")
     return {"boards": n_boards, "listings": n_artefacts, "new_artefacts": n_new}
 
 
-def _enumerate_products(client: PoliteClient) -> dict[str, dict]:
+def _enumerate_products(client: PoliteClient, typeid: int = MB_TYPEID,
+                        prefix: str = "") -> dict[str, dict]:
     series = client.get(
         f"{API}/GetPDLevel",
-        params={"website": WEBSITE, "type": 1, "typeid": MB_TYPEID, "productflag": 0},
-        snapshot="series.json").json()
+        params={"website": WEBSITE, "type": 1, "typeid": typeid, "productflag": 0},
+        snapshot=f"{prefix}series.json").json()
     items = series["Result"]["ProductLevel"]["Products"]["Items"]
     products: dict[str, dict] = {}
     for s in items:
         data = client.get(
             f"{API}/GetPDLevel",
             params={"website": WEBSITE, "type": 2, "typeid": s["Id"], "productflag": 1},
-            snapshot=f"products_series_{s['Id']}.json").json()
+            snapshot=f"{prefix}products_series_{s['Id']}.json").json()
         for p in (data.get("Result") or {}).get("Product") or []:
             products[p["PDId"]] = p
     return products

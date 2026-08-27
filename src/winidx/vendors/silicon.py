@@ -41,6 +41,15 @@ PAGES: list[tuple[str, str, str]] = [
      "https://www.intel.com/content/www/us/en/download/19351/"
      "intel-wireless-wi-fi-drivers-for-windows-10-and-windows-11.html",
      r"[Vv]ersion[^0-9]{0,20}(\d+(?:\.\d+){2,3})"),
+    ("NVIDIA Graphics",
+     "https://gfwsl.geforce.com/services_toolkit/services/com/nvidia/services/"
+     "AjaxDriverService.php?func=DriverManualLookup&psid=131&pfid=1067"
+     "&osID=135&languageCode=1033&dch=1&numberOfResults=1",
+     r'"Version"\s*:\s*"(\d+\.\d+)"'),
+    ("Intel VGA",
+     "https://www.intel.com/content/www/us/en/download/785597/"
+     "intel-arc-iris-xe-graphics-windows.html",
+     r"[Vv]ersion[^0-9]{0,20}(\d+\.\d+\.\d+\.\d+)"),
     ("Intel Bluetooth",
      "https://www.intel.com/content/www/us/en/download/18649/"
      "intel-wireless-bluetooth-for-windows-10-and-windows-11.html",
@@ -79,9 +88,23 @@ def crawl(conn: sqlite3.Connection, client, run_date: str,
         # then US format (Intel), within a generous window
         window = body[m.end():m.end() + 3000]
         iso = re.search(r"(\d{4}-\d{2}-\d{2})", window)
+        mon = re.search(r"([A-Z][a-z]{2})[a-z]*\s+(\d{1,2}),\s*(\d{4})", window)
+        if mon and not iso:
+            import datetime as _dt
+            try:
+                iso = None
+                date_mon = _dt.datetime.strptime(
+                    f"{mon.group(1)} {mon.group(2)} {mon.group(3)}",
+                    "%b %d %Y").date().isoformat()
+            except ValueError:
+                date_mon = None
+        else:
+            date_mon = None
         dm = _DATE.search(window)
         if iso and (not dm or iso.start() < dm.start()):
             date = iso.group(1)
+        elif date_mon:
+            date = date_mon
         else:
             date = (f"{dm.group(3)}-{int(dm.group(1)):02d}-{int(dm.group(2)):02d}"
                     if dm else None)

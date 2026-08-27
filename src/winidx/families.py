@@ -27,7 +27,7 @@ RULES: list[tuple[str, str, str, list[str]]] = [
     # which the chipset rule would otherwise claim.
     ("AMD Graphics", "amd", "graphics",
      [r"amd graphics", r"amd apu", r"\bapu\b", r"amd vga",
-      r"amd.{0,10}graphic"]),
+      r"amd.{0,10}graphic", r"radeon", r"adrenalin"]),
     ("AMD RAID", "amd", "storage",
      # 'md raid' covers ASUS's typo'd 'MD RAID Driver' listings. A generic
      # 'raid driver' pattern is a trap: it caught Intel RST via MSI's
@@ -132,7 +132,7 @@ RULES: list[tuple[str, str, str, list[str]]] = [
     # drivers (32.x) and must not share a family with them.
     ("GPU VBIOS", "nvidia", "graphics", [r"\bvbios\b", r"gpu firmware"]),
     ("NVIDIA Graphics", "nvidia", "graphics",
-     [r"n?vidia", r"n?vdia", r"geforce", r"\bquadro\b"]),
+     [r"n?vidia", r"n?vdia", r"geforce", r"game ready", r"\bquadro\b"]),
     ("Intel ISH", "intel", "chipset", [r"sensor hub", r"\bish\b",
      r"integrated sensor"]),
     ("Intel WWAN", "intel", "wwan", [r"intel.*wwan", r"xmm7\d+"]),

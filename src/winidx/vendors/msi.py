@@ -78,8 +78,65 @@ def crawl(conn: sqlite3.Connection, client: PoliteClient, run_date: str,
                     n_artefacts += 1
                     n_new += recorded
         conn.commit()
+    gpu_products = _enumerate_gpus(client, log)
+    gpus = []
+    for p in gpu_products:
+        hit = scope.extract_gpu(p["title"])
+        if hit:
+            gpus.append((p, *hit))
+    log(f"msi: {len(gpu_products)} gpu products, {len(gpus)} in scope")
+    if limit:
+        gpus = gpus[:limit]
+    for product, chip, gvendor in gpus:
+        slug = product["link"]
+        board_id = db.upsert_board(
+            conn, run_date, vendor=VENDOR, vendor_product_id=str(product["id"]),
+            name=product["title"], slug=slug, chipset=chip,
+            product_type="graphics-card",
+            release_date=(product.get("release") or "")[:10] or None,
+            support_url=f"https://www.msi.com/Graphics-Card/{slug}/support")
+        n_boards += 1
+        for type_param, kind, with_os in PANEL_TYPES:
+            params = {"product": slug, "type": type_param}
+            if with_os:
+                params["os"] = WIN11
+            try:
+                data = client.get(PANEL, params=params,
+                                  snapshot=f"gpu_{slug}_{type_param}.json").json()
+            except Exception as exc:
+                log(f"  msi: gpu skipped {slug}/{type_param}: {str(exc)[:50]}")
+                continue
+            for entry in _iter_entries(data):
+                recorded = _record_artefact(conn, run_date, board_id, entry, kind)
+                if recorded is not None:
+                    n_artefacts += 1
+                    n_new += recorded
+        conn.commit()
     log(f"msi: {n_boards} boards, {n_artefacts} listings, {n_new} new artefacts")
     return {"boards": n_boards, "listings": n_artefacts, "new_artefacts": n_new}
+
+
+def _enumerate_gpus(client: PoliteClient, log) -> list[dict]:
+    """Graphics cards: product-line id 4, tags under filter type 3."""
+    token = None
+
+    def get(url: str, snapshot: str):
+        nonlocal token
+        if not (client.snapshot_dir / snapshot).exists() and token is None:
+            page = client.get(SUPPORT_PAGE)
+            token = _TOKEN.search(page.text).group(1)
+        return client.get(f"{url}&_token={token}" if token else url,
+                          snapshot=snapshot).json()
+
+    tags = get(f"{AJAX}/get_tag_list_by_product_line?id=4", "gpu_tags.json")
+    series = tags["filter_tag_list"].get("3", [])
+    products: dict[int, dict] = {}
+    for tag in series:
+        lst = get(f"{AJAX}/get_product_by_tag?id={tag['tag_id']}&product_line=vga",
+                  f"gpu_products_tag_{tag['tag_id']}.json")
+        for p in lst:
+            products[p["id"]] = p
+    return list(products.values())
 
 
 def _enumerate_products(client: PoliteClient, log) -> list[dict]:

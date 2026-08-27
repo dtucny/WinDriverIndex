@@ -42,3 +42,26 @@ def extract_chipset(name: str) -> tuple[str, str] | None:
             keep = suffix if suffix in ("E", "A") else ""
             return base + keep, socket
     return None
+
+
+# GPU scope (graphics cards): era parity with the platform cutoffs —
+# NVIDIA RTX 30/40/50 (2020+), AMD RX 6000/7000/9000 (2020+), Intel Arc.
+# GTX 16xx / RTX 20 / RX 5000 predate the line, as Z490 does on desktops.
+_GPU = re.compile(
+    r"\b(?:"
+    r"RTX[\s™]*(?P<rtx>[345]0[5-9]0(?:\s*(?:Ti|SUPER|D))*)"
+    r"|RX[\s™]*(?P<rx>(?:6[4-9]|7[6-9]|9[0-7])\d0[MA]?(?:\s*(?:XTX|XT|GRE))?)"
+    r"|Arc[\s™]*(?P<arc>[AB]\d{3})"
+    r")\b", re.IGNORECASE)
+
+
+def extract_gpu(name: str) -> tuple[str, str] | None:
+    """Return (chip label, gpu silicon vendor) for an in-scope card name."""
+    m = _GPU.search(name)
+    if not m:
+        return None
+    if m.group("rtx"):
+        return "RTX " + re.sub(r"\s+", " ", m.group("rtx").upper()), "nvidia"
+    if m.group("rx"):
+        return "RX " + re.sub(r"\s+", " ", m.group("rx").upper()), "amd"
+    return "Arc " + m.group("arc").upper(), "intel"
