@@ -5,9 +5,10 @@ from __future__ import annotations
 import re
 
 CHIPSET_SOCKET: dict[str, str] = {
-    # AM4
-    "A320": "AM4", "B350": "AM4", "X370": "AM4",
-    "B450": "AM4", "X470": "AM4",
+    # AM4 — 500-series only: era parity with the Intel 600+ (12th-gen, 2021)
+    # cutoff. The 300/400-series (2017-18) predate it by the same margin as
+    # the excluded Intel 100-400 chipsets; including them made every
+    # "most neglected" list a museum tour.
     "A520": "AM4", "B550": "AM4", "X570": "AM4",
     # AM5 (E-variants normalised separately, B840 is AM5 despite the numbering)
     "A620": "AM5", "B650": "AM5", "X670": "AM5",

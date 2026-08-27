@@ -297,6 +297,12 @@ def _legion_models(client, log) -> list[tuple[str, str, str]]:
                                          for k in ("LEGION", "LOQ")):
                 continue
             model, mt = parts[2], parts[3].lower()
+            # Win11-only charter scope: exclude pre-floor CPUs. Kaby/Skylake
+            # codes (ikb/isk — Y520/Y720/Y920 era, incl. late 81xx refreshes)
+            # sit below the Windows 11 support floor; a decade-old laptop
+            # topping "most neglected" is a scope leak, not a finding.
+            if re.search(r"i(kb|sk)", model.lower()):
+                continue
             if mt in seen:
                 continue
             seen.add(mt)

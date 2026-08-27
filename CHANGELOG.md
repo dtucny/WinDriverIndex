@@ -72,6 +72,15 @@ published data schema is versioned separately (see `schema_version` in every
   1,663 enriched listings, recovering rows the SU catalog hides (e.g.
   Fortemedia audio).
 
+### Changed
+- **Scope tightened to era parity** (user-driven): AM4 is now 500-series
+  only (A520/B550/X570) — the 300/400-series predate the Intel 600+ cutoff
+  by the same margin as the excluded Intel 100–400 chipsets; and Lenovo
+  consumer machines below the Windows 11 CPU floor (Kaby/Skylake ikb/isk
+  codes plus the 80xx MT block) are excluded. −157 boards, −6 machines; the
+  "most neglected" lists now surface genuine in-era neglect (X570 Taichi at
+  7.2 yr) instead of museum pieces.
+
 ### Fixed
 - Water-level integrity hardening: a majority-version-line guard stops
   vendor mislabels from topping a family with a foreign scheme (ASUS ships
