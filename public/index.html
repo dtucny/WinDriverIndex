@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>WinDriverIndex — motherboard driver currency</title>
-<meta name="description" content="How far behind the newest available driver each motherboard vendor's board listings sit, across MSI, Gigabyte, ASRock, and ASUS.">
+<meta name="description" content="How far behind the newest available driver each hardware vendor's support listings sit — motherboards, laptops, desktops, and graphics cards across MSI, Gigabyte, ASRock, ASUS, Lenovo, and Dell.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🩺</text></svg>">
 <style>
   :root {
@@ -140,7 +140,8 @@
     <h1>WinDriver<span class="dot">Index</span></h1>
     <button id="themeToggle" type="button" aria-label="Toggle colour theme">◐ theme</button>
   </div>
-  <p class="sub">A cross-vendor index of motherboard and system driver versions —
+  <p class="sub">A cross-vendor index of motherboard, system, and graphics-card
+  driver versions —
   and the <b>vendor-lag metric</b>: how far behind the newest available driver
   each vendor's listings actually sit.</p>
   <p class="meta">Data generated <strong id="gen">…</strong> ·
@@ -167,8 +168,9 @@ all in two years</b>.</p>
 <p class="note" style="margin-top:12px" id="tiernote"></p>
 
 <h2>Do vendors maintain their back catalogue?</h2>
-<p class="note">Median worst-case lag per desktop platform (Lenovo machines
-have no socket and sit out this view). Darker = further behind: the tell-tale
+<p class="note">Median worst-case lag per desktop platform, plus each vendor's
+add-in graphics cards (laptop/desktop system vendors have no socket and sit
+out this view). Darker = further behind: the tell-tale
 pattern is a vendor keeping the current generation fresh while
 old-but-still-sold boards drift for years.</p>
 <div class="card scroll" style="padding:14px" id="heatwrap"></div>
@@ -282,8 +284,8 @@ below the water line.</p>
     with ${ws.silent_2yr} machines (${ws.silent_2yr_pct}% of its catalogue).`;
 
   // heatmap (desktop vendors × sockets)
-  const socks=['AM4','AM5','LGA1700','LGA1851'];
-  const sockyr={AM4:'2017',AM5:'2022',LGA1700:'2021',LGA1851:'2024'};
+  const socks=['AM4','AM5','LGA1700','LGA1851','GPU'];
+  const sockyr={AM4:'2017',AM5:'2022',LGA1700:'2021',LGA1851:'2024',GPU:'cards'};
   const step=v=>v<250?'c1':v<500?'c2':v<900?'c3':v<1400?'c4':'c5';
   const hv=Object.keys(d.heatmap).sort((a,b)=>(d.vendors[a].median_lag_days-d.vendors[b].median_lag_days));
   $('heatwrap').innerHTML=`<table class="heat"><thead><tr><th></th>`+

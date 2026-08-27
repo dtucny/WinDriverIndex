@@ -48,7 +48,7 @@ def run(conn: sqlite3.Connection, *, log=print) -> dict:
 
     boards = [dict(r) for r in conn.execute(
         "SELECT board_id, vendor, vendor_product_id, name, slug, revision,"
-        " chipset, socket, release_date, support_url FROM board")]
+        " chipset, socket, product_type, release_date, support_url FROM board")]
 
     effective = _effective_versions(conn)
     water = _water_level(conn, families, effective)
@@ -428,7 +428,9 @@ def _dashboard(conn, families, water, board_lag, effective, bios_data) -> dict:
     for v, bids in by_vendor.items():
         cells = _dd(list)
         for b in bids:
-            sock = bmeta[b]["socket"]
+            # graphics cards have no socket; give them their own heatmap column
+            sock = bmeta[b]["socket"] or (
+                "GPU" if bmeta[b]["product_type"] == "graphics-card" else None)
             if sock:
                 cells[sock].append(max(l["lag_days"] for l in per_board[b]))
         if cells:

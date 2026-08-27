@@ -307,3 +307,23 @@ Implications for this project:
 - Python 3.14.7 via uv (system python3 is 3.12; `uv python install 3.14`).
 - Crawls run from a PH Converge connection; see spec §9 for the AU routing
   pathology if anything AU-hosted is slow.
+
+## Graphics cards (v0.3, 2026-08-27)
+
+- Card enumeration: Gigabyte product line 3 (1,606 products), MSI product
+  line 4 / `product_line=vga` (580), ASUS typeid 1233 (1,877). Era gate =
+  RTX 30/40/50, RX 6000/7000/9000, Arc A/B (`scope.extract_gpu`; the token
+  regex must eat `™` between brand and number — 67→388 in-scope difference).
+- **MSI ships no GPU drivers at all**: every one of 477 card driver panels
+  is an `os: []` husk plus a `Drivers[].downloads_html` HTML blurb pointing
+  at the NVIDIA App / vendor download sites. Only VBIOS + utilities are
+  versioned. Not a parser gap — verified 0/477 panels contain a file.
+- The three AIB postures: ASUS updates card pages (median worst-lag 65 d),
+  Gigabyte freezes them near launch (median 1,228 d), MSI delegates.
+- Upstream GPU silicon sources: NVIDIA AjaxDriverService JSON (gfwsl) for
+  GeForce, Intel Arc page 785597, AMD Adrenalin page (existing). NVIDIA's
+  Windows driver INF scheme is 32.0.15.xxxx (=5xx.xx marketing); Intel's is
+  32.0.101.xxxx — same major, so one Dell manifest that titles a GeForce
+  package with an Intel-scheme version pollutes the NVIDIA major-32
+  same-line footnote (cosmetic, single package).
+- ASRock cards (Arc/Radeon) not yet enumerated — different page family.
