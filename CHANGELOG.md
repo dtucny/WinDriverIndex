@@ -55,6 +55,11 @@ published data schema is versioned separately (see `schema_version` in every
   PROSet/Killer/Realtek bundle relationships whitelisted in the INF check.
 
 ### Fixed
+- Lag no longer reads "current" for behind versions that a vendor re-listed
+  after the water rose: the publication-gap formula went negative and was
+  clamped to 0 (found via MSI re-listing AMD RAID 9.3.3.218 days after
+  9.3.3.329 shipped on WU). A behind pairing now lags at least as long as
+  the newer version has existed.
 - Water level no longer misreports families whose packages bundle other
   components: the INF-DriverVer override is now confined to the listing's
   major-version line (an ASUS AMD-chipset zip ships NPU INFs numbered 32.x —

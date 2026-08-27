@@ -180,8 +180,15 @@ def _lag(conn, families, water, effective) -> tuple[list[dict], list[dict]]:
         if effective[r["artefact_id"]].tuple == tuple(w["version_normalised"]):
             lag = 0
         elif w["first_published"] and r["listed_date"]:
-            lag = max(0, (dt.date.fromisoformat(w["first_published"])
-                          - dt.date.fromisoformat(r["listed_date"])).days)
+            # Spec formula (water date - listed date) goes NEGATIVE when a
+            # vendor re-publishes an old version after the water rose (MSI
+            # re-listed RAID 9.3.3.218 eleven days after 9.3.3.329 appeared)
+            # — clamping that to 0 falsely read as 'current'. A behind
+            # version is behind for at least as long as the newer one has
+            # existed, so take the max with (today - water date).
+            wd = dt.date.fromisoformat(w["first_published"])
+            lag = max((wd - dt.date.fromisoformat(r["listed_date"])).days,
+                      (dt.date.today() - wd).days, 1)
         else:
             lag = None
         entry = {"board_id": board_id, "family_id": fid,
