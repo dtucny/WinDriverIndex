@@ -62,11 +62,18 @@ def _date(text: str) -> str | None:
         return None
 
 
-def crawl(conn: sqlite3.Connection, client, run_date: str,
-          *, limit: int | None = None, log=print) -> dict:
-    raw = client.get(CATALOG, snapshot="CatalogPC.cab", timeout=300).content
-    # cab -> single UTF-16 XML; 7z-free: the cab holds one MSZIP-compressed
-    # file, but shelling to 7zz is simpler and already a project dependency
+INDEX = "https://downloads.dell.com/catalog/CatalogIndexPC.cab"
+# consumer brand prefixes (business lines come from CatalogPC in one file)
+CONSUMER_PREFIXES = ("INS", "INSDT", "VOSNB", "VOSDT", "ANWNB", "ANWDT",
+                     "XPSDT", "DL", "DD")
+_GROUP = re.compile(
+    r'<Brand key="\d+" prefix="([^"]*)">.*?'
+    r'<ManifestInformation[^>]*path="([^"]+)"[^>]*>.*?'
+    r'<Hash algorithm="SHA256">([0-9a-fA-F]{64})</Hash>', re.S)
+MODEL_CAB_DIR_NAME = "modelcabs"
+
+
+def _extract_cab(raw: bytes) -> str:
     import subprocess, tempfile, pathlib, shutil
     seven = shutil.which("7zz") or shutil.which("7z") or "7zz"
     with tempfile.TemporaryDirectory() as td:
@@ -75,8 +82,55 @@ def crawl(conn: sqlite3.Connection, client, run_date: str,
         subprocess.run([seven, "x", "-y", f"-o{td}", str(cab)],
                        capture_output=True, check=True)
         xml_path = next(pathlib.Path(td).glob("*.xml"))
-        text = xml_path.read_bytes().decode("utf-16", errors="replace")
+        return xml_path.read_bytes().decode("utf-16", errors="replace")
 
+
+def crawl(conn: sqlite3.Connection, client, run_date: str,
+          *, limit: int | None = None, log=print) -> dict:
+    text = _extract_cab(
+        client.get(CATALOG, snapshot="CatalogPC.cab", timeout=300).content)
+    stats = _ingest(conn, client, run_date, text, limit, log)
+
+    # consumer lines: per-model cabs listed in CatalogIndexPC, sha256-
+    # addressed (cached across runs; only changed model catalogs re-fetch)
+    from .. import config as _config
+    import pathlib
+    cab_dir = _config.RAW_DIR / VENDOR / MODEL_CAB_DIR_NAME
+    cab_dir.mkdir(parents=True, exist_ok=True)
+    idx = _extract_cab(
+        client.get(INDEX, snapshot="CatalogIndexPC.cab", timeout=300).content)
+    groups = [(p_, path, sha.lower()) for p_, path, sha in _GROUP.findall(idx)
+              if p_ in CONSUMER_PREFIXES]
+    if limit:
+        groups = groups[:limit]
+    log(f"dell: {len(groups)} consumer model catalogs")
+    n_fetched = 0
+    for _pfx, path, sha in groups:
+        cached = cab_dir / f"{sha}.cab"
+        if cached.exists():
+            raw2 = cached.read_bytes()
+        else:
+            try:
+                raw2 = client.get(DL_BASE + path).content
+            except Exception as exc:
+                log(f"  dell: model cab failed {path[-40:]}: {str(exc)[:50]}")
+                continue
+            cached.write_bytes(raw2)
+            n_fetched += 1
+        try:
+            mtext = _extract_cab(raw2)
+        except Exception:
+            continue
+        st = _ingest(conn, client, run_date, mtext, None, lambda *a: None)
+        stats = {k: stats[k] + st[k] for k in stats}
+    log(f"dell total: {stats['boards']} systems, {stats['listings']} listings, "
+        f"{stats['new_artefacts']} new ({n_fetched} model cabs fetched)")
+    return stats
+
+
+def _ingest(conn: sqlite3.Connection, client, run_date: str, text: str,
+            limit, log) -> dict:
+    raw = None  # (kept name-compatible with the original body below)
     # Era gate (Win11-only charter). Catalog DATES are useless for this:
     # Dell republishes 2012-era packages with fresh releaseDates (an E5420
     # BIOS 'A12' stamped 2021-07-27, a 2012 RST driver stamped 2026). The
@@ -88,16 +142,21 @@ def crawl(conn: sqlite3.Connection, client, run_date: str,
     # carry TPM/EC firmware classed as BIOS-type with numeric versions,
     # which would whitelist a 2011 Latitude.
     modern_sids: set[str] = set()
+    sys_oldest_drv: dict[str, str] = {}
     for block in _COMPONENT.findall(text):
         ct = _CTYPE.search(block)
+        head = block[:block.find(">")]
+        attrs = dict(_ATTR.findall(head))
+        d = _date(attrs.get("releaseDate", "")) or (attrs.get("dateTime") or "")[:10]
+        if ct and ct.group(1) == "DRVR" and d:
+            for sid, _n in _SYS.findall(block):
+                if d < sys_oldest_drv.get(sid, "9999"):
+                    sys_oldest_drv[sid] = d
         if not ct or ct.group(1) != "BIOS":
             continue
         nm = _NAME.search(block)
         if not nm or "system bios" not in nm.group(1).lower():
             continue
-        head = block[:block.find(">")]
-        attrs = dict(_ATTR.findall(head))
-        d = _date(attrs.get("releaseDate", "")) or (attrs.get("dateTime") or "")[:10]
         # numeric scheme AND a recent System BIOS: 2010-era desktops already
         # used numeric versions (Precision T1500 '2.4.0', 2012), and Dell
         # restamps old packages with fresh dates — each check catches the
@@ -106,6 +165,12 @@ def crawl(conn: sqlite3.Connection, client, run_date: str,
                 and (d or "") >= "2021-07":
             for sid, _n in _SYS.findall(block):
                 modern_sids.add(sid)
+    # third conjunct — launch-era floor: a machine's OLDEST driver package
+    # dates its original stack (an Inspiron 7460's cab starts in 2016).
+    # Restamps only push dates newer, so this floor can't be gamed upward
+    # into a false negative; 2017-01 keeps late-2017 8th-gen launches.
+    modern_sids = {sid for sid in modern_sids
+                   if sys_oldest_drv.get(sid, "9999") >= "2017-01"}
 
     # board rows: merge config-variant systemIDs under one display name
     sys_to_board: dict[str, int] = {}

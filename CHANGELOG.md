@@ -98,6 +98,14 @@ published data schema is versioned separately (see `schema_version` in every
   WDDM 32.x vs AMD's marketing 26.x) the date-newer one wins. Silicon-page
   date extraction widened (ISO + US formats).
 
+- **Dell consumer lines** via CatalogIndexPC's per-model catalog cabs
+  (sha256-addressed, cached across runs — 922 fetched once, 0 on refresh):
+  Inspiron, Vostro, Alienware, G-series, XPS Desktop and the 2025 "Dell"
+  rebrand join the business lines for 913 systems total. Era gating gained a
+  third conjunct — a machine's oldest driver package dates its launch stack
+  (restamps can only push dates newer) — separating out-of-charter museum
+  hardware from the real finding: Win11-capable 2017-18 consumer machines
+  with listings frozen at launch, up to 9.1 years behind water.
 - **Dell (business lines) in the index** — the whole vendor from one file:
   Dell Command Update's CatalogPC.cab (chrome-TLS) yields 379 in-era systems
   (Latitude/Precision/OptiPlex/XPS/Dell Pro) and ~2,900 packages with real
