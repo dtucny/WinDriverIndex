@@ -77,7 +77,7 @@ RULES: list[tuple[str, str, str, list[str]]] = [
       r"rtk \d{4}\w* wifi", r"azurewave"]),
     ("Realtek LAN", "realtek", "lan",
      [r"realtek.*(pci-e ethernet|lan)", r"realtek8125", r"realtek8126",
-      r"realtek.*ethernet"]),
+      r"realtek.*ethernet", r"\b1168\.\d"]),
 
     ("Intel I225/I226 LAN", "intel", "lan", [r"i22[56]"]),
     ("Intel I211 LAN", "intel", "lan", [r"i211"]),
@@ -118,7 +118,7 @@ RULES: list[tuple[str, str, str, list[str]]] = [
 
     ("Intel SST", "intel", "audio", [r"smart sound", r"\bsst\b"]),
     ("NVIDIA Graphics", "nvidia", "graphics",
-     [r"nvidia", r"geforce", r"\bquadro\b"]),
+     [r"n?vidia", r"n?vdia", r"geforce", r"\bquadro\b"]),
     ("Intel ISH", "intel", "chipset", [r"sensor hub", r"\bish\b"]),
     ("Intel WWAN", "intel", "wwan", [r"intel.*wwan", r"xmm7\d+"]),
     ("WWAN (module vendors)", "oem", "wwan",
@@ -127,6 +127,15 @@ RULES: list[tuple[str, str, str, list[str]]] = [
     ("Card Reader", "oem", "usb", [r"card reader", r"smartcard"]),
     ("Fingerprint Reader", "oem", "usb",
      [r"fingerprint", r"goodix", r"synaptics.*(fp|fingerprint)"]),
+    # Lenovo multi-silicon combo packages (one zip covering Realtek+MediaTek
+    # etc.); versions aren't cross-vendor comparable, but each family's lag
+    # against the newest combo across all Lenovo machines is meaningful.
+    ("Notebook WLAN (multi-silicon)", "oem", "wlan",
+     [r"lenovo\.com.*\bwlan driver\b"]),
+    ("Notebook Bluetooth (multi-silicon)", "oem", "bluetooth",
+     [r"lenovo\.com.*\bbluetooth driver\b"]),
+    ("Notebook Chipset (OEM)", "oem", "chipset",
+     [r"lenovo\.com.*\bchipset driver\b"]),
     ("Laptop OEM Audio", "oem", "audio",
      [r"thinkpad audio", r"senary", r"conexant", r"cirrus", r"fortemedia"]),
     ("ASPEED Graphics", "aspeed", "graphics", [r"aspeed"]),
@@ -225,12 +234,13 @@ def run(conn: sqlite3.Connection, *, log=print) -> dict:
     unmatched = []
     for row in conn.execute(
             "SELECT artefact_id, vendor, vendor_artefact_id, description_text,"
-            " component_hint, url FROM artefact"
+            " component_hint, url, version_raw FROM artefact"
             " WHERE kind = 'driver' AND source_type = 'vendor'").fetchall():
         url_path = (row["url"] or "").split("?")[0].split("://")[-1]
         text = " ".join(filter(None, (row["vendor_artefact_id"], url_path,
                                       row["description_text"],
-                                      row["component_hint"]))).lower()
+                                      row["component_hint"],
+                                      row["version_raw"]))).lower()
         text = re.sub(r"\(r\)|®|™", " ", text)   # 'intel(r) chipset' etc.
         # Filenames tokenise with underscores ('Intel_Chipset_Driver_...');
         # hyphens are kept — 'wi-fi' patterns rely on them.

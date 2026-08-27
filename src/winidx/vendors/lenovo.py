@@ -197,6 +197,10 @@ def _crawl_mt(conn, client, run_date, board_id, mt, display, log) -> tuple[int, 
         kind = ("bios" if "bios" in category.lower()
                 else "utility" if _UTIL.search(category or "")
                 else "driver")
+        # NOTE: combo packages ('6001.x/6102.x/25.40.x') carry no silicon
+        # names in the SU descriptor — the '(Realtek, Mediatek)' labels exist
+        # only on the pcsupport website layer. Per-silicon splitting therefore
+        # needs that API (roadmap); combos stay whole in category families.
         ver = versions.parse(entry["version"])
         artefact_id, is_new = db.upsert_artefact(
             conn, run_date, vendor=VENDOR,
@@ -212,3 +216,4 @@ def _crawl_mt(conn, client, run_date, board_id, mt, display, log) -> tuple[int, 
         n_listings += 1
         n_new += is_new
     return n_listings, n_new
+
