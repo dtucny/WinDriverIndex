@@ -21,6 +21,11 @@ from .http import PoliteClient
 
 FETCH_KINDS = ("driver",)   # BIOS/utility payloads add ~tens of GB and no families
 
+# Vendors whose artefact URLs are NOT payloads (Lenovo's point at package
+# descriptor XMLs; real payload URLs live inside the descriptor — Tier-2 for
+# Lenovo means parsing those out first, a roadmap follow-up).
+METADATA_ONLY_VENDORS = ("lenovo",)
+
 
 def payload_path(sha256: str, ext: str = ".zip") -> Path:
     return config.PAYLOAD_DIR / sha256[:2] / f"{sha256}{ext}"
@@ -30,8 +35,9 @@ def run(conn: sqlite3.Connection, run_date: str, *, vendor: str | None = None,
         limit: int | None = None, kinds=FETCH_KINDS, newest_only: bool = False,
         log=print) -> dict:
     where = (f"kind IN ({','.join('?' * len(kinds))}) AND url IS NOT NULL"
-         " AND source_type = 'vendor'")
-    params: list = list(kinds)
+             " AND source_type = 'vendor'"
+             f" AND vendor NOT IN ({','.join('?' * len(METADATA_ONLY_VENDORS))})")
+    params: list = list(kinds) + list(METADATA_ONLY_VENDORS)
     if vendor:
         where += " AND vendor = ?"
         params.append(vendor)
