@@ -180,7 +180,8 @@ _PREINSTALL = re.compile(r"preinstall|bootdisk|sata floppy|sata/floppy",
 # Artefacts without INF evidence adopt the subfamily of an evidenced artefact
 # with the same normalised version, then fall back to version-major lines.
 SPLIT_PARENTS = {"MediaTek Wi-Fi", "MediaTek Bluetooth",
-                 "AMD Wi-Fi", "AMD Bluetooth", "Realtek LAN"}
+                 "AMD Wi-Fi", "AMD Bluetooth", "Realtek LAN",
+                 "Notebook Chipset (OEM)"}
 SUBFAMILIES: list[tuple[str, str, str, set[str]]] = [
     ("MediaTek Wi-Fi 7", "mediatek", "wlan",
      {r"PCI\VEN_14C3&DEV_0717", r"PCI\VEN_14C3&DEV_0738"}),
@@ -198,6 +199,10 @@ SUBFAMILIES: list[tuple[str, str, str, set[str]]] = [
      {r"PCI\VEN_10EC&DEV_8168", r"PCI\VEN_10EC&DEV_8111"}),
     ("Realtek 8125 LAN", "realtek", "lan", {r"PCI\VEN_10EC&DEV_8125"}),
     ("Realtek 8126 LAN", "realtek", "lan", {r"PCI\VEN_10EC&DEV_8126"}),
+    # Notebook chipset combos split by platform via version-major fallback
+    # only (no HWID anchors — these rows are rarely fetched)
+    ("Notebook Chipset (Intel)", "intel", "chipset", set()),
+    ("Notebook Chipset (AMD)", "amd", "chipset", set()),
 ]
 SPLIT_VERSION_FALLBACK: dict[str, dict[int, str]] = {
     "MediaTek Wi-Fi": {5: "MediaTek Wi-Fi 7", 3: "MediaTek Wi-Fi 6E"},
@@ -210,6 +215,11 @@ SPLIT_VERSION_FALLBACK: dict[str, dict[int, str]] = {
                     10: "Realtek 8125 LAN", 11: "Realtek 8125 LAN",
                     1: "Realtek 8168 LAN", 7: "Realtek 8168 LAN",
                     8: "Realtek 8168 LAN", 9: "Realtek 8168 LAN"},
+    # Intel chipset-INF scheme is 10.x; AMD laptop chipset lines are 2.x/5.x
+    "Notebook Chipset (OEM)": {10: "Notebook Chipset (Intel)",
+                               2: "Notebook Chipset (AMD)",
+                               5: "Notebook Chipset (AMD)",
+                               4: "Notebook Chipset (AMD)"},
 }
 
 # Family pairs that legitimately share INFs because one package bundles the
