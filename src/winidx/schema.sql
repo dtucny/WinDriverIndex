@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS board (
     socket             TEXT,
     release_date       TEXT,
     support_url        TEXT,
+    product_type       TEXT NOT NULL DEFAULT 'motherboard',
     first_seen         TEXT NOT NULL,
     last_seen          TEXT NOT NULL,
     UNIQUE (vendor, vendor_product_id)
@@ -44,6 +45,10 @@ CREATE TABLE IF NOT EXISTS artefact (
     md5                 TEXT,            -- Gigabyte ?v= (verified = payload MD5), or computed
     os_raw              TEXT,
     is_beta             INTEGER NOT NULL DEFAULT 0,
+    -- 'vendor' = a motherboard/system vendor's listing (scored by vendor-lag);
+    -- 'upstream' = a reference source (WU Catalog, silicon vendor): raises the
+    -- water level, never enters vendor-lag denominators.
+    source_type         TEXT NOT NULL DEFAULT 'vendor',
     description_raw     TEXT,
     description_text    TEXT,
     first_seen          TEXT NOT NULL,

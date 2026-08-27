@@ -29,7 +29,8 @@ def payload_path(sha256: str, ext: str = ".zip") -> Path:
 def run(conn: sqlite3.Connection, run_date: str, *, vendor: str | None = None,
         limit: int | None = None, kinds=FETCH_KINDS, newest_only: bool = False,
         log=print) -> dict:
-    where = f"kind IN ({','.join('?' * len(kinds))}) AND url IS NOT NULL"
+    where = (f"kind IN ({','.join('?' * len(kinds))}) AND url IS NOT NULL"
+         " AND source_type = 'vendor'")
     params: list = list(kinds)
     if vendor:
         where += " AND vendor = ?"

@@ -23,7 +23,20 @@ def connect(path: Path | None = None) -> sqlite3.Connection:
     conn.execute("PRAGMA journal_mode = WAL")
     conn.execute("PRAGMA foreign_keys = ON")
     conn.executescript(resources.files("winidx").joinpath("schema.sql").read_text())
+    _migrate(conn)
     return conn
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    """CREATE IF NOT EXISTS doesn't add columns to existing tables; bring an
+    older DB up to the current schema (v0.2: source_type, product_type)."""
+    for table, column, ddl in [
+        ("artefact", "source_type", "TEXT NOT NULL DEFAULT 'vendor'"),
+        ("board", "product_type", "TEXT NOT NULL DEFAULT 'motherboard'"),
+    ]:
+        cols = {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}
+        if column not in cols:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}")
 
 
 def upsert_board(conn: sqlite3.Connection, run_date: str, *, vendor: str,

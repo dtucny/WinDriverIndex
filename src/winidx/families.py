@@ -197,7 +197,8 @@ def run(conn: sqlite3.Connection, *, log=print) -> dict:
     unmatched = []
     for row in conn.execute(
             "SELECT artefact_id, vendor, vendor_artefact_id, description_text,"
-            " component_hint, url FROM artefact WHERE kind = 'driver'").fetchall():
+            " component_hint, url FROM artefact"
+            " WHERE kind = 'driver' AND source_type = 'vendor'").fetchall():
         url_path = (row["url"] or "").split("?")[0].split("://")[-1]
         text = " ".join(filter(None, (row["vendor_artefact_id"], url_path,
                                       row["description_text"],

@@ -12,9 +12,10 @@ import sys
 
 from . import config, db, deploy, extract, families, fetch, publish
 from .http import PoliteClient
-from .vendors import asrock, asus, gigabyte, msi
+from .vendors import asrock, asus, gigabyte, msi, wucatalog
 
-CRAWLERS = {"gigabyte": gigabyte, "msi": msi, "asus": asus, "asrock": asrock}
+CRAWLERS = {"gigabyte": gigabyte, "msi": msi, "asus": asus, "asrock": asrock,
+            "wucatalog": wucatalog}
 PLANNED: set[str] = set()
 
 

@@ -8,6 +8,20 @@ published data schema is versioned separately (see `schema_version` in every
 
 ## [Unreleased]
 
+### Added (v0.2 groundwork)
+- `artefact.source_type` (`vendor`/`upstream`) and `board.product_type`
+  columns with automatic migration; upstream artefacts raise the water level
+  but never enter vendor-lag, fetch, or text-rule assignment.
+- **Windows Update Catalog as an upstream reference source**
+  (`winidx crawl wucatalog`): queried per representative HWID (silicon-VEN
+  filtered against bundle contamination), metadata only. First run: WU ships
+  newer than every board vendor for 12 of 49 driver families.
+- Cross-source version-scheme guard in the water level: when an upstream
+  top's major version differs from the vendor top's (MediaTek is 1.x/3.x/5.x
+  on vendor sites, year-based 26.x on WU), the release date arbitrates and
+  the vendor row wins ties. `water-level.json` gains `upstream_only` and
+  `best_vendor_version` fields.
+
 ### Fixed
 - Water level no longer misreports families whose packages bundle other
   components: the INF-DriverVer override is now confined to the listing's

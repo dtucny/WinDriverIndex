@@ -101,13 +101,28 @@ def _water_level(conn, families, effective) -> list[dict]:
     result = []
     for fid, fam in sorted(families.items()):
         rows = [r for r in conn.execute(
-            "SELECT artefact_id, version_raw, release_date, vendor"
+            "SELECT artefact_id, version_raw, release_date, vendor, source_type"
             " FROM artefact WHERE family_id = ? AND kind = 'driver'"
             " AND is_beta = 0", (fid,)).fetchall()
             if effective[r["artefact_id"]].tuple]
         if not rows or "(preinstall)" in fam["name"]:
             continue
         top = max(rows, key=lambda r: versions.compare_key(effective[r["artefact_id"]]))
+        # Best version any *board vendor* lists, for the upstream-gap metric.
+        vend_rows = [r for r in rows if r["source_type"] == "vendor"]
+        vend_top = (max(vend_rows, key=lambda r: versions.compare_key(
+            effective[r["artefact_id"]])) if vend_rows else None)
+        # Cross-source scheme guard: sources renumber independently (MediaTek
+        # is 1.x/3.x/5.x on board-vendor sites but year-based 26.x on WU), so
+        # when an upstream top's MAJOR differs from the vendor top's, numeric
+        # comparison is meaningless — the release date arbitrates, and the
+        # vendor row wins ties or missing dates.
+        if (top["source_type"] == "upstream" and vend_top is not None
+                and effective[top["artefact_id"]].tuple[0]
+                != effective[vend_top["artefact_id"]].tuple[0]):
+            td, vd = top["release_date"], vend_top["release_date"]
+            if not td or (vd and vd >= td):
+                top = vend_top
         top_tuple = effective[top["artefact_id"]].tuple
         at_top = [r for r in rows if effective[r["artefact_id"]].tuple == top_tuple]
         dates = [r["release_date"] for r in at_top if r["release_date"]]
@@ -117,6 +132,11 @@ def _water_level(conn, families, effective) -> list[dict]:
             "version_normalised": list(top_tuple),
             "first_published": min(dates) if dates else None,
             "published_by": sorted({r["vendor"] for r in at_top}),
+            # True when only an upstream reference (WU Catalog, silicon
+            # vendor) ships this version — no board vendor has caught up.
+            "upstream_only": all(r["source_type"] == "upstream" for r in at_top),
+            "best_vendor_version": (effective[vend_top["artefact_id"]].raw
+                                    if vend_top else None),
         })
     return result
 
