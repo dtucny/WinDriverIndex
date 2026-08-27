@@ -185,18 +185,30 @@ def _crawl(conn: sqlite3.Connection, client, run_date: str,
         vendor_path = chipset_str.split(" ")[0]           # AMD | Intel
         slug = model.replace("/", "", 1)                  # mirrors the site JS
         url = f"{host}/mb/{vendor_path}/{slug}/Download.html"
+        snap_slug = slug.replace(' ', '_').replace('+', 'p')
         try:
-            page = client.get(url.replace(" ", "%20"),
-                              snapshot=f"dl_{slug.replace(' ', '_').replace('+', 'p')}.html")
+            page = client.get(url.replace(" ", "%20"), snapshot=f"dl_{snap_slug}.html")
         except _Challenged:
             log(f"asrock: skipped {model} — challenge did not clear")
             continue
+        # BIOS lives on a separate page (Download.html carries none); same row
+        # markup, so the same parser applies and kind falls out of the URL path.
+        bios_rows = []
+        try:
+            bios_page = client.get(
+                f"{host}/mb/{vendor_path}/{slug}/BIOS.html".replace(" ", "%20"),
+                snapshot=f"bios_{snap_slug}.html")
+            bios_rows = list(_parse_download_page(
+                bios_page.content.decode("utf-8", "replace")))
+        except _Challenged:
+            log(f"asrock: BIOS page skipped for {model} — challenge did not clear")
         board_id = db.upsert_board(
             conn, run_date, vendor=VENDOR, vendor_product_id=model,
             name=model, slug=slug, chipset=chipset, socket=socket,
             support_url=url)
         n_boards += 1
-        for entry in _parse_download_page(page.content.decode("utf-8", "replace")):
+        for entry in list(_parse_download_page(
+                page.content.decode("utf-8", "replace"))) + bios_rows:
             recorded = _record_artefact(conn, run_date, board_id, entry)
             if recorded is not None:
                 n_artefacts += 1
@@ -230,24 +242,42 @@ def _parse_download_page(page: str):
         if link is None:
             continue
         # Win11-only scope; the Beta Zone rows carry class 'Beta' instead.
+        # BIOS rows carry no OS classes at all (OS-independent) — admit them
+        # by their /BIOS/ download path.
         is_beta = "Beta" in classes.split()
-        if "osW1164" not in classes and not is_beta:
+        href = link.attributes.get("href") or ""
+        if "osW1164" not in classes and not is_beta and "/BIOS/" not in href:
             continue
         cells = tr.css("td")
-        desc_html = cells[0].html if cells else ""
-        desc_text = cells[0].text(separator=" ", strip=True) if cells else ""
         onclick = link.attributes.get("onClick") or link.attributes.get("onclick") or ""
         click = _CLICKRATE.search(onclick)
-        sha = _SHA256.search(desc_html or "")
-        ver = _VER.search(html_mod.unescape(desc_text))
         size = date = None
-        if len(cells) >= 4:
-            size = _parse_size(cells[2].text(strip=True))
-            date = _parse_date(cells[3].text(strip=True))
+        if "/BIOS/" in href:
+            # BIOS layout: version(+[Beta]) | date | size | method | description
+            desc_cell = cells[4] if len(cells) > 4 else (cells[0] if cells else None)
+            desc_html = desc_cell.html if desc_cell is not None else ""
+            desc_text = desc_cell.text(separator=" ", strip=True) if desc_cell is not None else ""
+            ver = None
+            if cells:
+                vtext = cells[0].text(separator=" ", strip=True)
+                is_beta = is_beta or "[beta]" in vtext.lower()
+            if len(cells) >= 3:
+                date = _parse_date(cells[1].text(strip=True))
+                size = _parse_size(cells[2].text(strip=True))
+        else:
+            # driver layout: description(+sha) | OS | size | date | download
+            desc_html = cells[0].html if cells else ""
+            desc_text = cells[0].text(separator=" ", strip=True) if cells else ""
+            ver = _VER.search(html_mod.unescape(desc_text))
+            if len(cells) >= 4:
+                size = _parse_size(cells[2].text(strip=True))
+                date = _parse_date(cells[3].text(strip=True))
+        sha = _SHA256.search(desc_html or "")
         yield {
             "url": link.attributes["href"],
             "category": html_mod.unescape(click.group(1)) if click else None,
-            "version": (click.group(2) if click else None) or (ver.group(1) if ver else None),
+            "version": (click.group(2) if click else None)
+                       or (ver.group(1) if ver else None),
             "sha256": sha.group(1).lower() if sha else None,
             "description": desc_text[:500],
             "size": size,

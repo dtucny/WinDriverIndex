@@ -327,6 +327,34 @@ drift for years.</p>
 </div>
 <div class="legend" style="margin-top:12px">component vs the newest any vendor ships: <span class="chip g">current<b class="cv">✓</b></span> <span class="chip a">behind<b class="cv">&lt;1yr</b></span> <span class="chip r">behind<b class="cv">1yr+</b></span></div>
 
+<h2>BIOS: the opposite story</h2>
+<p class="note">Unlike drivers, <b>BIOS pipelines stay alive</b> — the 2025/26
+security waves (fTPM, microcode, AGESA) pushed updates to nearly every board,
+including ones whose driver listings were abandoned years ago. Driver
+abandonment is a choice, not incapacity. On AMD boards the vendors all wrap
+the same AMD AGESA bundle, making it the one cross-vendor-comparable BIOS
+component: the current water level is <b>AGESA 1.3.0.1c</b> (AM5) and
+<b>1.2.0.F</b> (AM4).</p>
+<div class="card scroll">
+<table>
+  <thead><tr><th>Vendor</th><th class="num">Median since last BIOS</th>
+    <th class="num">BIOS within 1 yr</th><th class="num">Silent ≥2 yr</th>
+    <th class="num">AMD boards on newest AGESA</th></tr></thead>
+  <tbody>
+    <tr><td class="vend">Gigabyte</td><td class="num">28 d</td><td class="num">100%</td><td class="num">0%</td><td class="num">96%</td></tr>
+    <tr><td class="vend">ASUS</td><td class="num">56 d</td><td class="num">100%</td><td class="num">0%</td><td class="num">8%*</td></tr>
+    <tr><td class="vend">MSI</td><td class="num">57 d</td><td class="num">100%</td><td class="num">0%</td><td class="num">27%</td></tr>
+    <tr><td class="vend">ASRock</td><td class="num">108 d</td><td class="num">88%</td><td class="num">12%</td><td class="num">2%*</td></tr>
+  </tbody>
+</table>
+</div>
+<p class="note" style="margin-top:10px">Gigabyte inverts its driver reputation
+here: slowest on drivers, fastest and most complete on BIOS. The
+newest-AGESA column is strict — *ASUS ships new AGESA as beta BIOS first (its
+stable channel trails), and ASRock's AM5 fleet sits almost entirely one step
+behind at 1.3.0.1b. Full data in
+<a href="/v1/latest/bios.json">bios.json</a>.</p>
+
 <h2>Use the data</h2>
 <p class="note">Everything here is static JSON, CORS-enabled, versioned, and free
 to mirror. Point a driver-checker at <code>by-hwid</code> and report anything
@@ -338,6 +366,7 @@ below the water line.</p>
     <tr><td><a href="/v1/latest/vendor-lag.json"><code>/v1/latest/vendor-lag.json</code></a></td><td>The vendor-lag metric above</td></tr>
     <tr><td><a href="/v1/latest/families.json"><code>/v1/latest/families.json</code></a></td><td>Family table with HWID sets</td></tr>
     <tr><td><a href="/v1/latest/boards.json"><code>/v1/latest/boards.json</code></a></td><td>Board catalogue with chipset / socket</td></tr>
+    <tr><td><a href="/v1/latest/bios.json"><code>/v1/latest/bios.json</code></a></td><td>BIOS currency + AGESA water level</td></tr>
     <tr><td><code>/v1/latest/by-hwid/{hwid}.json</code></td><td>Point lookup by hardware ID</td></tr>
   </tbody>
 </table>

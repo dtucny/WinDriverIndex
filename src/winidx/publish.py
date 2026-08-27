@@ -16,7 +16,7 @@ import json
 import sqlite3
 from collections import defaultdict
 
-from . import config, versions
+from . import bios, config, versions
 
 SCHEMA_VERSION = "1.0.0"
 CAVEAT = ("Water level means the newest version any vendor has published, "
@@ -54,6 +54,7 @@ def run(conn: sqlite3.Connection, *, log=print) -> dict:
     water = _water_level(conn, families, effective)
     board_lag, vendor_lag = _lag(conn, families, water, effective)
 
+    emit("bios.json", bios.compute(conn))
     emit("families.json", list(families.values()))
     emit("artefacts.json", artefacts)
     emit("boards.json", boards)

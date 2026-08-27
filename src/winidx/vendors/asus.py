@@ -21,6 +21,7 @@ VENDOR = "asus"
 
 API = "https://www.asus.com/support/api/product.asmx"
 DRIVERS_API = "https://www.asus.com/support/webapi/ProductV2/GetPDDrivers"
+BIOS_API = "https://www.asus.com/support/api/product.asmx/GetPDBIOS"
 CDN = "https://dlcdnets.asus.com"
 WEBSITE = "ph"          # region; content believed region-identical (spec §4.4)
 MB_TYPEID = 1156        # motherboards
@@ -58,6 +59,18 @@ def crawl(conn: sqlite3.Connection, client: PoliteClient, run_date: str,
             snapshot=f"drivers_{pdid}.json").json()
         for category, entry in _iter_files(data):
             recorded = _record_artefact(conn, run_date, board_id, entry, category)
+            if recorded is not None:
+                n_artefacts += 1
+                n_new += recorded
+        # BIOS list (separate endpoint, same shape); Description carries AGESA
+        bios = client.get(BIOS_API, params={
+            "website": WEBSITE, "model": product["PDName"],
+            "pdhashedid": product.get("PDHashedId") or "",
+            "pdid": pdid, "cpu": ""},
+            snapshot=f"bios_{pdid}.json").json()
+        for category, entry in _iter_files(bios):
+            recorded = _record_artefact(conn, run_date, board_id, entry,
+                                        category, kind_override="bios")
             if recorded is not None:
                 n_artefacts += 1
                 n_new += recorded
@@ -99,7 +112,8 @@ def _parse_size(text: str | None) -> int | None:
     return int(float(m.group(1)) * {"kb": 1e3, "mb": 1e6, "gb": 1e9}[m.group(2).lower()])
 
 
-def _record_artefact(conn, run_date, board_id, entry, category) -> bool | None:
+def _record_artefact(conn, run_date, board_id, entry, category,
+                     kind_override: str | None = None) -> bool | None:
     url = (entry.get("DownloadUrl") or {}).get("Global")
     if not url:
         return None
@@ -109,8 +123,9 @@ def _record_artefact(conn, run_date, board_id, entry, category) -> bool | None:
     ver = versions.parse(version_raw)
     release = (entry.get("ReleaseDate") or "").replace("/", "-") or None
     sha = (entry.get("sha256") or "").strip()
-    title = entry.get("Title") or ""
-    kind = "utility" if "utilit" in (category or "").lower() else "driver"
+    title = " — ".join(filter(None, (entry.get("Title"),
+                                     entry.get("Description")))).strip() or ""
+    kind = kind_override or ("utility" if "utilit" in (category or "").lower() else "driver")
     # entry['Id'] embeds per-board tokens and even URLs differ per board for
     # the same payload; the published sha256 is the only stable identity
     # (13,451 listings -> 503 distinct hashes, observed 2026-08-26).
@@ -127,7 +142,8 @@ def _record_artefact(conn, run_date, board_id, entry, category) -> bool | None:
         url=url,
         sha256=sha_norm,
         os_raw="Win11 64",
-        is_beta=int(ver.is_beta or bool(_BETA.search(title))),
+        is_beta=int(ver.is_beta or bool(_BETA.search(title))
+                    or str(entry.get("IsRelease")) == "0"),
         description_text=title,
     )
     db.link_board_artefact(conn, run_date, board_id, artefact_id, release)

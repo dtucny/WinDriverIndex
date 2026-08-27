@@ -141,7 +141,9 @@ def _record_artefact(conn, run_date, board_id, pair, kind) -> bool | None:
         sha256=sha.group(1).lower() if sha else None,
         os_raw=os_raw,
         is_beta=int(is_beta),
-        description_text=entry.get("download_title"),
+        description_raw=entry.get("download_description"),
+        description_text=" — ".join(filter(None, (
+            entry.get("download_title"), entry.get("download_description")))),
     )
     db.link_board_artefact(conn, run_date, board_id, artefact_id,
                            entry.get("download_release"))

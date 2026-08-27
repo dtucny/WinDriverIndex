@@ -27,6 +27,16 @@ published data schema is versioned separately (see `schema_version` in every
   of 49 families sit ahead of every board vendor; Intel Bluetooth's level is
   independently confirmed by both (24.60.0.4).
 
+- **BIOS currency and the AGESA water level** (`bios.json` + dashboard
+  section): ASUS GetPDBIOS and ASRock BIOS.html crawls added (ASRock BIOS
+  rows use a different column layout; MSI BIOS descriptions were being
+  dropped), AGESA versions parsed from release notes across all four vendors
+  (~7,250 of 17,580 BIOS artefacts), per-line water level (AM5 1.3.0.1c,
+  AM4-V2 1.2.0.F) with letters-above-digits ordering and Patch suffixes.
+  Headline: BIOS pipelines stay alive even where driver listings were
+  abandoned — Gigabyte inverts its driver reputation (28-day median, 96% of
+  AMD boards on newest AGESA); ASRock trails again (12% BIOS-silent ≥2 yr).
+
 ### Fixed
 - Water level no longer misreports families whose packages bundle other
   components: the INF-DriverVer override is now confined to the listing's
