@@ -36,7 +36,9 @@ from . import config
 
 RCLONE = shutil.which("rclone") or "rclone"
 IMMUTABLE = "Cache-Control: public, max-age=31536000, immutable"
-REVALIDATE = "Cache-Control: public, max-age=3600, must-revalidate"
+# latest/ is the freshness path — 5 min keeps edge caching for read bursts
+# while letting deploys propagate quickly (1h made every update look stale).
+REVALIDATE = "Cache-Control: public, max-age=300, must-revalidate"
 
 CORS_POLICY = """\
 [
