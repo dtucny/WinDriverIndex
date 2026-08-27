@@ -93,7 +93,12 @@ def run(*, dry_run: bool = False, date: str | None = None, log=print) -> dict:
               "--s3-no-check-bucket"]
 
     # Immutable dated snapshot: copy (never delete) so history is preserved.
+    # The ~36k per-HWID/per-board point-lookup files are excluded — they are
+    # inherently "current" queries served from latest/, and snapshotting them
+    # would add ~740 MB storage and ~36k Class A ops per dated path (the
+    # aggregate files below are ~5 MB). Consumers pin dated aggregates.
     _run(["copy", str(src), f"r2:{bucket}/v1/{date}",
+          "--exclude", "by-hwid/**", "--exclude", "by-board/**",
           "--header-upload", IMMUTABLE, *common], env, dry_run, log)
     # latest: sync (mirror, deleting removed families) with short TTL.
     _run(["sync", str(src), f"r2:{bucket}/v1/latest",
