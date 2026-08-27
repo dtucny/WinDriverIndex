@@ -241,7 +241,7 @@ below the water line.</p>
     $('tiles').innerHTML='<div class="tile"><div class="l">Could not load dashboard data.</div></div>';
     return;
   }
-  const LABEL={msi:'MSI',asus:'ASUS',gigabyte:'Gigabyte',asrock:'ASRock',lenovo:'Lenovo'};
+  const LABEL={msi:'MSI',asus:'ASUS',gigabyte:'Gigabyte',asrock:'ASRock',lenovo:'Lenovo',dell:'Dell',hp:'HP'};
   const fmt=n=>n.toLocaleString('en-US');
   const yr=dd=>dd>=365?(dd/365).toFixed(1)+' yr':dd+' d';
   $('gen').textContent=(gen||'').slice(0,10);
