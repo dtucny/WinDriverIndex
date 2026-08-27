@@ -14,6 +14,12 @@ Update / Vantage / Legion Toolkit consume):
 2. https://download.lenovo.com/catalog/{mt}_win11.xml — package list for one
    machine type: descriptor URL + category + sha256 OF THE DESCRIPTOR.
 3. The package descriptor XML — version, title, release date.
+4. Enrichment: pcsupport's downloads/drivers API (needs a one-page session
+   warm-up, then JSON per product path) carries what the SU catalog hides —
+   per-silicon combo version strings ("8852BE_6001.x,MT7921_RZ616_25.40.x")
+   and silicon-suffixed versions ("6.0.9464.1_Fortemedia"). Multi-token
+   combos are split into one artefact per silicon so each lands in its real
+   family.
 
 The descriptor sha256 in layer 2 makes descriptors content-addressed: they
 are cached under data/raw/lenovo/descriptors/{sha}.xml across runs, so a
@@ -59,6 +65,106 @@ def make_client(run_date: str):
     return PoliteClient(VENDOR, run_date, min_interval=0.5)
 
 
+PSUP_API = ("https://pcsupport.lenovo.com/us/en/api/v4/downloads/drivers"
+            "?productId={path}")
+PSUP_PAGE = "https://pcsupport.lenovo.com/us/en/products/{path}/downloads/driver-list"
+_SUBVER = re.compile(r"(\d+(?:\.\d+){2,})")
+_PSUP_HINT = [
+    (re.compile(r"88\d\d|rtl|rts\d|realtek", re.I), "Realtek"),
+    (re.compile(r"mt\d|rz\d|mediatek", re.I), "MediaTek"),
+    (re.compile(r"n?v(i)?dia|geforce", re.I), "NVIDIA"),
+    (re.compile(r"intel|ax2\d\d", re.I), "Intel"),
+    (re.compile(r"amd", re.I), "AMD"),
+]
+
+
+def _psup_paths(client) -> dict[str, str]:
+    """mt -> full product-tree path, from the cached MSE trees."""
+    import json as _json
+    out: dict[str, str] = {}
+    for tree in ("laptops-and-netbooks", "desktops-and-all-in-ones"):
+        try:
+            data = _json.loads(client.get(
+                MSE.format(tree=tree), snapshot=f"mse_{tree}.json").content)
+        except Exception:
+            continue
+        for item in data:
+            parts = item.get("Id", "").lower().split("/")
+            if len(parts) >= 4:
+                out.setdefault(parts[3], "/".join(parts[:4]))
+    return out
+
+
+def _psup_enrich(conn, run_date, board_id, mt, path, psup, log) -> int:
+    """Split multi-silicon combo packages via the pcsupport listing."""
+    import json as _json
+    try:
+        raw = psup.get(PSUP_API.format(path=path),
+                       snapshot=f"psup_{mt}.json",
+                       headers={"Referer": PSUP_PAGE.format(path=path)}).content
+        data = _json.loads(raw)
+    except Exception as exc:
+        log(f"  lenovo: psup skipped {mt}: {str(exc)[:60]}")
+        return 0
+
+    def find(n):
+        if isinstance(n, dict):
+            if "DownloadItems" in n:
+                return n["DownloadItems"]
+            for v in n.values():
+                r = find(v)
+                if r is not None:
+                    return r
+        if isinstance(n, list):
+            for v in n:
+                r = find(v)
+                if r is not None:
+                    return r
+    items = find(data) or []
+    n = 0
+    for it in items:
+        title = it.get("Title") or ""
+        files = it.get("Files") or []
+        if not files:
+            continue
+        verstr = files[0].get("Version") or ""
+        tokens = [t.strip() for t in re.split(r"[,;]", verstr) if t.strip()]
+        subs = []
+        for tok in tokens:
+            m = None
+            for m in _SUBVER.finditer(tok):
+                pass
+            if not m:
+                continue
+            prefix = (tok[:m.start()] + tok[m.end():]).strip(" _-")
+            word = next((w for p, w in _PSUP_HINT if p.search(prefix)), "")
+            subs.append((prefix, m.group(1), word))
+        # only worth emitting when the combo actually splits, or a single
+        # token carries a silicon suffix the SU descriptor lacks
+        if len(subs) < 2 and not (len(subs) == 1 and subs[0][0]):
+            continue
+        cat = re.split(r"\s+Driver\b", title)[0].strip() or "component"
+        date = None
+        dd = files[0].get("Date")
+        if isinstance(dd, dict) and dd.get("Unix"):
+            import datetime as _dt
+            date = _dt.datetime.fromtimestamp(int(dd["Unix"]) / 1000,
+                                              _dt.UTC).date().isoformat()
+        for i, (prefix, ver, word) in enumerate(subs):
+            pv = versions.parse(ver)
+            desc = " ".join(filter(None, (word, prefix, cat, "driver")))
+            artefact_id, _new = db.upsert_artefact(
+                conn, run_date, vendor=VENDOR,
+                vendor_artefact_id=f"psup:{it.get('DocId')}#{i}",
+                kind="driver", component_hint=cat,
+                version_raw=ver, version_normalised=pv.normalised_json,
+                release_date=date, url=PSUP_PAGE.format(path=path),
+                os_raw="Win11 64", description_text=desc)
+            db.link_board_artefact(conn, run_date, board_id, artefact_id, date)
+            n += 1
+    return n
+
+
 def _product_type(name: str) -> str:
     return "laptop" if name.startswith("ThinkPad") else "desktop"
 
@@ -84,6 +190,23 @@ def crawl(conn: sqlite3.Connection, client, run_date: str,
     if limit:
         legion = legion[:limit]
 
+    paths = _psup_paths(client)
+    from ..http import PoliteClient
+    psup = PoliteClient(VENDOR, run_date, browser_headers=True)
+    psup_warm = [False]
+
+    def enrich(board_id, mt):
+        path = paths.get(mt)
+        if not path:
+            return 0
+        if not psup_warm[0]:
+            try:
+                psup.get(PSUP_PAGE.format(path=path))   # cookie warm-up
+            except Exception:
+                pass
+            psup_warm[0] = True
+        return _psup_enrich(conn, run_date, board_id, mt, path, psup, log)
+
     n_boards = n_listings = n_new = 0
     for display, mt, ptype in legion:
         board_id = db.upsert_board(
@@ -92,7 +215,7 @@ def crawl(conn: sqlite3.Connection, client, run_date: str,
             support_url=f"https://pcsupport.lenovo.com/products/{mt}")
         n_boards += 1
         li, ln = _crawl_mt(conn, client, run_date, board_id, mt, display, log)
-        n_listings += li
+        n_listings += li + enrich(board_id, mt)
         n_new += ln
         conn.commit()
 
@@ -116,7 +239,7 @@ def crawl(conn: sqlite3.Connection, client, run_date: str,
             db.link_board_artefact(conn, run_date, board_id, _, date or None)
             n_new += is_new
         li, ln = _crawl_mt(conn, client, run_date, board_id, mt, display, log)
-        n_listings += li
+        n_listings += li + enrich(board_id, mt)
         n_new += ln
         conn.commit()
     log(f"lenovo: {n_boards} machines, {n_listings} listings, {n_new} new artefacts")

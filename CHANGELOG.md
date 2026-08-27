@@ -65,6 +65,13 @@ published data schema is versioned separately (see `schema_version` in every
   chips). **NVIDIA VBIOS/firmware split from the driver family** (95.x vs
   32.x lines).
 
+- **Lenovo per-silicon combo enrichment** via pcsupport's downloads API
+  (cookie warm-up + Referer): multi-silicon combo packages split into one
+  listing per chip with true per-silicon versions (Realtek 8852BE/CE,
+  MediaTek RZ616, Sunplus/Realtek cameras, Genesys/Realtek card readers) —
+  1,663 enriched listings, recovering rows the SU catalog hides (e.g.
+  Fortemedia audio).
+
 ### Fixed
 - Water-level integrity hardening: a majority-version-line guard stops
   vendor mislabels from topping a family with a foreign scheme (ASUS ships
