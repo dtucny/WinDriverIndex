@@ -24,7 +24,8 @@ from . import config
 class PoliteClient:
     def __init__(self, vendor: str, run_date: str, *, browser_headers: bool = False,
                  impersonate: str | None = "chrome",
-                 extra_headers: dict[str, str] | None = None):
+                 extra_headers: dict[str, str] | None = None,
+                 min_interval: float | None = None):
         self.vendor = vendor
         self.run_date = run_date
         self.snapshot_dir = config.RAW_DIR / vendor / run_date
@@ -33,13 +34,14 @@ class PoliteClient:
             self._session.headers["User-Agent"] = config.USER_AGENT
         if extra_headers:
             self._session.headers.update(extra_headers)
+        self._min_interval = min_interval or config.MIN_REQUEST_INTERVAL
         self._last_request: dict[str, float] = {}
 
     def _throttle(self, url: str) -> None:
         host = url.split("/")[2]
         elapsed = time.monotonic() - self._last_request.get(host, 0.0)
-        if elapsed < config.MIN_REQUEST_INTERVAL:
-            time.sleep(config.MIN_REQUEST_INTERVAL - elapsed)
+        if elapsed < self._min_interval:
+            time.sleep(self._min_interval - elapsed)
         self._last_request[host] = time.monotonic()
 
     def get(self, url: str, *, snapshot: str | None = None,
@@ -55,8 +57,14 @@ class PoliteClient:
             resp = _CachedResponse(path)
             return resp
         self._throttle(url)
-        resp = self._session.get(url, timeout=timeout or config.REQUEST_TIMEOUT,
-                                 **kwargs)
+        try:
+            resp = self._session.get(url, timeout=timeout or config.REQUEST_TIMEOUT,
+                                     **kwargs)
+        except requests.exceptions.Timeout:
+            # one retry on a transient hang before letting the caller decide
+            time.sleep(3)
+            resp = self._session.get(url, timeout=timeout or config.REQUEST_TIMEOUT,
+                                     **kwargs)
         resp.raise_for_status()
         if path:
             path.parent.mkdir(parents=True, exist_ok=True)

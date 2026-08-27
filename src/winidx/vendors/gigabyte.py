@@ -61,9 +61,13 @@ def crawl(conn: sqlite3.Connection, client: PoliteClient, run_date: str,
     n_boards = n_artefacts = n_new = 0
     for product, chipset, socket in in_scope:
         pid = product["productId"]
-        tab = client.get(
-            f"{API}/Consumer/global/GetProductTabDataAsync/Support/{pid}",
-            snapshot=f"product_{pid}.json").json()["data"]
+        try:
+            tab = client.get(
+                f"{API}/Consumer/global/GetProductTabDataAsync/Support/{pid}",
+                snapshot=f"product_{pid}.json").json()["data"]
+        except Exception as exc:
+            log(f"  gigabyte: skipped {product['productName']}: {str(exc)[:60]}")
+            continue
         board_id = db.upsert_board(
             conn, run_date, vendor=VENDOR, vendor_product_id=str(pid),
             name=product["productName"], chipset=chipset, socket=socket)

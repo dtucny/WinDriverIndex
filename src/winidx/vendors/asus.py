@@ -52,22 +52,30 @@ def crawl(conn: sqlite3.Connection, client: PoliteClient, run_date: str,
             support_url="https://www.asus.com/supportonly/"
                         f"{product['PDName'].replace(' ', '%20')}/helpdesk_download/")
         n_boards += 1
-        data = client.get(DRIVERS_API, params={
+        try:
+            data = client.get(DRIVERS_API, params={
             "website": WEBSITE, "model": product["PDName"],
             "pdhashedid": product.get("PDHashedId") or "",
             "pdid": pdid, "cpu": "", "osid": OSID_WIN11},
             snapshot=f"drivers_{pdid}.json").json()
+        except Exception as exc:
+            log(f"  asus: skipped {product['PDName']}: {str(exc)[:60]}")
+            continue
         for category, entry in _iter_files(data):
             recorded = _record_artefact(conn, run_date, board_id, entry, category)
             if recorded is not None:
                 n_artefacts += 1
                 n_new += recorded
         # BIOS list (separate endpoint, same shape); Description carries AGESA
-        bios = client.get(BIOS_API, params={
+        try:
+            bios = client.get(BIOS_API, params={
             "website": WEBSITE, "model": product["PDName"],
             "pdhashedid": product.get("PDHashedId") or "",
             "pdid": pdid, "cpu": ""},
             snapshot=f"bios_{pdid}.json").json()
+        except Exception as exc:
+            log(f"  asus: BIOS skipped {product['PDName']}: {str(exc)[:60]}")
+            bios = {}
         for category, entry in _iter_files(bios):
             recorded = _record_artefact(conn, run_date, board_id, entry,
                                         category, kind_override="bios")

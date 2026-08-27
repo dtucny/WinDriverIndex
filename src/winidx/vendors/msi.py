@@ -66,8 +66,12 @@ def crawl(conn: sqlite3.Connection, client: PoliteClient, run_date: str,
             params = {"product": slug, "type": type_param}
             if with_os:
                 params["os"] = WIN11
-            data = client.get(PANEL, params=params,
-                              snapshot=f"panel_{slug}_{type_param}.json").json()
+            try:
+                data = client.get(PANEL, params=params,
+                                  snapshot=f"panel_{slug}_{type_param}.json").json()
+            except Exception as exc:
+                log(f"  msi: skipped {slug}/{type_param}: {str(exc)[:60]}")
+                continue
             for entry in _iter_entries(data):
                 recorded = _record_artefact(conn, run_date, board_id, entry, kind)
                 if recorded is not None:
