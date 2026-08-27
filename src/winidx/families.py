@@ -248,6 +248,13 @@ BUNDLE_OK: set[frozenset] = {
         ("Realtek Wi-Fi", "Realtek 8168 LAN"),
         ("Realtek Wi-Fi", "Realtek 8125 LAN"),
         ("Realtek Wi-Fi", "Realtek 8126 LAN"),
+        # combined Realtek LAN packages bundle all three generations' INFs
+        ("Realtek 8168 LAN", "Realtek 8125 LAN"),
+        ("Realtek 8168 LAN", "Realtek 8126 LAN"),
+        ("Realtek 8125 LAN", "Realtek 8126 LAN"),
+        ("Realtek LAN", "Realtek 8168 LAN"),
+        ("Realtek LAN", "Realtek 8125 LAN"),
+        ("Realtek LAN", "Realtek 8126 LAN"),
         # Both MediaTek BT generations bundle the same LE-audio ACX INF.
         ("MediaTek Bluetooth (Wi-Fi 7)", "MediaTek Bluetooth (Wi-Fi 6E)"),
         # Gigabyte's 'ITE USB driver' package ships the Realtek UcmCx INF.
@@ -344,9 +351,13 @@ def _apply_splits(conn, family_id, log) -> None:
                 "SELECT artefact_id, version_normalised FROM artefact"
                 " WHERE family_id = ?", (row["family_id"],)).fetchall():
             hwids = _artefact_hwids(conn, a["artefact_id"])
-            target = next((name for name, _, _, anchors in SUBFAMILIES
-                           if hwids and any(h.startswith(anchor) for h in hwids
-                                            for anchor in anchors)), None)
+            hits = [name for name, _, _, anchors in SUBFAMILIES
+                    if hwids and any(h.startswith(anchor) for h in hwids
+                                     for anchor in anchors)]
+            # a bundle carrying several generations' INFs (Realtek combined
+            # LAN packages ship 8168+8125+8126 together) is ambiguous —
+            # route it by its version line instead of the first anchor hit
+            target = hits[0] if len(hits) == 1 else None
             if target:
                 conn.execute("UPDATE artefact SET family_id = ? WHERE artefact_id = ?",
                              (sub_fids[target], a["artefact_id"]))

@@ -225,7 +225,10 @@ def _lag(conn, families, water, effective) -> tuple[list[dict], list[dict]]:
         else:
             lag = None
         entry = {"board_id": board_id, "family_id": fid,
-                 "listed_version": effective[r["artefact_id"]].raw,
+                 # what the vendor page shows — the INF-canonical 'effective'
+                 # version is for ordering and lag, never for display
+                 "listed_version": r["version_raw"],
+                 "effective_major": (effective[r["artefact_id"]].tuple or (None,))[0],
                  "listed_date": r["listed_date"], "lag_days": lag}
         board_lag.append(entry)
         if lag is not None:
@@ -277,6 +280,26 @@ def _emit_by_board(conn, out, families, water, board_lag, bios_per_board,
     boards = {r["board_id"]: dict(r) for r in conn.execute(
         "SELECT board_id, vendor, name, slug, chipset, socket, support_url"
         " FROM board")}
+    # newest per (family, major-version-line): vendors number the same driver
+    # in incompatible schemes, so a listing's honest comparison target is the
+    # newest version ON ITS OWN LINE; the cross-scheme family water stays as
+    # context (lag is date-derived and unaffected).
+    line_top: dict = {}
+    import re as _re
+    for r in conn.execute(
+            "SELECT artefact_id, family_id, version_raw, release_date"
+            " FROM artefact WHERE kind='driver' AND is_beta=0"
+            " AND family_id IS NOT NULL"):
+        e = effective[r["artefact_id"]]
+        if not e.tuple:
+            continue
+        raw = r["version_raw"] or ""
+        if "/" in raw and len(_re.findall(r"\d+(?:\.\d+){2,}", raw)) >= 2:
+            continue   # slash-combos: one arbitrary member's tuple, skip
+        k = (r["family_id"], e.tuple[0])
+        cur = line_top.get(k)
+        if cur is None or versions.compare_key(e) > versions.compare_key(cur[0]):
+            line_top[k] = (e, r["release_date"], r["version_raw"])
     from collections import defaultdict as _dd
     per: dict[int, list] = _dd(list)
     for e in board_lag:
@@ -288,12 +311,21 @@ def _emit_by_board(conn, out, families, water, board_lag, bios_per_board,
         for e in sorted(entries, key=lambda x: families[x["family_id"]]["name"]):
             fam = families[e["family_id"]]
             w = level[e["family_id"]]
+            maj = e["effective_major"]
+            same = line_top.get((e["family_id"], maj)) if maj is not None else None
+            same_differs = bool(
+                same and versions.parse(w["version"]).tuple
+                and versions.parse(w["version"]).tuple[0] != maj)
             fams.append({
                 "family": fam["name"], "component": fam["component"],
                 "listed_version": e["listed_version"],
                 "listed_date": e["listed_date"],
                 "water_version": w["version"],
                 "water_first_published": w["first_published"],
+                # newest on the listing's own numbering line, when the family
+                # water lives on a different (incomparable) line
+                "same_line_newest": (same[2] if same_differs else None),
+                "same_line_date": (same[1] if same_differs else None),
                 "upstream_only": w["upstream_only"],
                 "lag_days": e["lag_days"],
             })

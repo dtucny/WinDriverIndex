@@ -81,6 +81,15 @@ published data schema is versioned separately (see `schema_version` in every
   "most neglected" lists now surface genuine in-era neglect (X570 Taichi at
   7.2 yr) instead of museum pieces.
 
+- **Same-scheme comparisons in the picker**: each board row now shows the
+  newest version on the listing's own numbering line as the primary target,
+  with the cross-scheme family maximum demoted to an explicit "≠ scheme"
+  footnote (lag was always date-based and is unchanged). Displayed listing
+  versions are now always the vendor's own strings — the INF-canonical
+  'effective' version is used only for ordering (it had visibly rewritten
+  MSI's 25.10.36 to a bundled component's 25.10.0.4). Ambiguous multi-chip
+  Realtek bundles route by version line instead of first-anchor-wins.
+
 ### Fixed
 - Water-level integrity hardening: a majority-version-line guard stops
   vendor mislabels from topping a family with a foreign scheme (ASUS ships
