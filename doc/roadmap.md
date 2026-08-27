@@ -98,14 +98,19 @@ people can share "look how my board is doing".
 
 ## v0.3 — breadth
 
-### 5. Graphics cards
+### 5. Graphics cards — DONE 2026-08-27
 
 The vendor APIs already take a product-line parameter (Gigabyte line 3 = VGA,
 MSI `product_line=vga`, ASUS/ASRock equivalents). One driver family per GPU
 vendor, so the interesting metric is **AIB lag vs the NVIDIA/AMD reference**
 from item 3 — which is why 3 lands first.
 
-### 6. HP / Dell
+Shipped: 1,343 cards (Gigabyte 385 / MSI 477 / ASUS 481), RTX 30+/RX 6000+/
+Arc era gate, NVIDIA + Intel Arc upstream sources, GPU heatmap column.
+Verdict per vendor in doc/findings.md — headline: MSI publishes no GPU
+drivers at all. Still open: ASRock's card pages (separate page family).
+
+### 6. HP / Dell — Dell DONE 2026-08-27
 
 Both publish structured catalogs in the Lenovo mold:
 - **Dell**: one CatalogPC.cab from downloads.dell.com — a single XML with
