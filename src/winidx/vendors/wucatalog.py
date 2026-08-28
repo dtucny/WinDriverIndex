@@ -51,7 +51,7 @@ _VEN_IDS = {
 
 # Families whose HWID sets are known-contaminated by bundling: WU queries for
 # them return a different component's driver, so they get no upstream row.
-BLOCKLIST = {"Killer LAN"}
+BLOCKLIST = {"Killer LAN", "Killer Wi-Fi", "Killer Bluetooth", "Killer Suite"}
 
 
 def crawl(conn: sqlite3.Connection, client, run_date: str,

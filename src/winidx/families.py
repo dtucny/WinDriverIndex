@@ -84,6 +84,24 @@ RULES: list[tuple[str, str, str, list[str]]] = [
     ("Intel I225/I226 LAN", "intel", "lan", [r"i22[56]"]),
     ("Intel I211 LAN", "intel", "lan", [r"i211"]),
     ("Intel I219 LAN", "intel", "lan", [r"i219"]),
+    # 'Killer' is one brand over three schemes (Intel's release table shows
+    # it plainly): Killer Wi-Fi IS the Intel Wi-Fi driver line, the Ethernet
+    # parts are Realtek-scheme (1168/1125/1126.x), and the Performance
+    # Suite/Control Center is its own software line. One family mixed them —
+    # a suite version was the 'family newest' over a Wi-Fi driver listing.
+    ("Killer Suite", "intel", "lan",
+     [r"killersuite", r"killer network universal",
+      r"killer (?:wlan and lan|performance)",
+      r"killer[ _]?component[ _]?extension"]),
+    # Dell titles put a whole adapter roster between 'Killer' and the
+    # component word ('Killer AX1690/AX1675/AX1650 and Intel AX411/… Wi-Fi
+    # Controller Driver'), hence the wide windows
+    ("Killer Bluetooth", "intel", "bluetooth",
+     [r"killer[^.]{0,80}bluetooth", r"killer bt\b",
+      r"killer.*bluetooth (?:uwd )?driver"]),
+    ("Killer Wi-Fi", "intel", "wlan",
+     [r"killer[^.]{0,80}wi-?fi", r"wi-?fi[^.]{0,20}killer", r"killer wireless",
+      r"killer.*wlan driver", r"killer.*wi-?fi (?:controller |uwd )?driver"]),
     ("Killer LAN", "intel", "lan", [r"killer"]),
     # MSI's '10G Super Lan' boards ship Aquantia/Marvell AQtion silicon;
     # INF evidence will confirm or split this once extracted.
@@ -195,7 +213,8 @@ _PREINSTALL = re.compile(r"preinstall|bootdisk|sata floppy|sata/floppy",
 # with the same normalised version, then fall back to version-major lines.
 SPLIT_PARENTS = {"MediaTek Wi-Fi", "MediaTek Bluetooth",
                  "AMD Wi-Fi", "AMD Bluetooth", "Realtek LAN",
-                 "Notebook Chipset (OEM)"}
+                 "Notebook Chipset (OEM)",
+                 "Killer LAN", "Killer Wi-Fi", "Killer Bluetooth"}
 SUBFAMILIES: list[tuple[str, str, str, set[str]]] = [
     ("MediaTek Wi-Fi 7", "mediatek", "wlan",
      {r"PCI\VEN_14C3&DEV_0717", r"PCI\VEN_14C3&DEV_0738"}),
@@ -217,6 +236,9 @@ SUBFAMILIES: list[tuple[str, str, str, set[str]]] = [
     # only (no HWID anchors — these rows are rarely fetched)
     ("Notebook Chipset (Intel)", "intel", "chipset", set()),
     ("Notebook Chipset (AMD)", "amd", "chipset", set()),
+    # version-fallback target only: ASRock labels suites 'Killer WLAN/LAN
+    # driver', so the suite's NN.YY majors get yanked back out by version
+    ("Killer Suite", "intel", "lan", set()),
 ]
 SPLIT_VERSION_FALLBACK: dict[str, dict[int, str]] = {
     "MediaTek Wi-Fi": {5: "MediaTek Wi-Fi 7", 3: "MediaTek Wi-Fi 6E"},
@@ -234,6 +256,12 @@ SPLIT_VERSION_FALLBACK: dict[str, dict[int, str]] = {
                                2: "Notebook Chipset (AMD)",
                                5: "Notebook Chipset (AMD)",
                                4: "Notebook Chipset (AMD)"},
+    # suite majors are NN.YY (33.22=2022 … 40.25/50.26); majors 2/3 stay
+    # text-routed — E3100 Ethernet's real driver is 2.1.5.7, same major as
+    # old Killersuite 2.3.x
+    "Killer LAN": {m: "Killer Suite" for m in (33, 34, 35, 36, 40, 50)},
+    "Killer Wi-Fi": {m: "Killer Suite" for m in (33, 34, 35, 36, 40, 50)},
+    "Killer Bluetooth": {m: "Killer Suite" for m in (33, 34, 35, 36, 40, 50)},
 }
 
 # Family pairs that legitimately share INFs because one package bundles the
@@ -248,6 +276,16 @@ BUNDLE_OK: set[frozenset] = {
         ("Intel DTT", "Intel IPF"),
         ("Killer LAN", "Intel Wi-Fi"),
         ("Killer LAN", "Intel I225/I226 LAN"),
+        ("Killer Suite", "Intel Wi-Fi"),
+        ("Killer Suite", "Intel Bluetooth"),
+        ("Killer Suite", "Intel I225/I226 LAN"),
+        ("Killer Suite", "Killer LAN"),
+        ("Killer Suite", "Killer Wi-Fi"),
+        ("Killer Suite", "Killer Bluetooth"),
+        ("Killer Wi-Fi", "Intel Wi-Fi"),
+        ("Killer Wi-Fi", "Intel Bluetooth"),
+        ("Killer Wi-Fi", "Killer Bluetooth"),
+        ("Killer Bluetooth", "Intel Bluetooth"),
         ("MediaTek LE Audio", "MediaTek Bluetooth (Wi-Fi 7)"),
         ("MediaTek LE Audio", "MediaTek Bluetooth (Wi-Fi 6E)"),
         # Intel PROSet-style LAN packages carry INFs for every Intel NIC, so
@@ -384,8 +422,14 @@ def _apply_splits(conn, family_id, log) -> None:
     for parent, a in undecided:   # no INF evidence: adopt an evidenced sibling
         fid = by_version.get(a["version_normalised"])
         if not fid and a["version_normalised"]:
-            name = SPLIT_VERSION_FALLBACK.get(parent, {}).get(
-                json.loads(a["version_normalised"])[0])
+            t = json.loads(a["version_normalised"])
+            name = SPLIT_VERSION_FALLBACK.get(parent, {}).get(t[0])
+            # Killer Control Center/suite 2.x/3.x always carries a ≥1000
+            # component (3.1122.x, 2.4.1549); E3100-era Ethernet's real
+            # 2.1.5.7 never does — structure separates them where text lies
+            if not name and parent.startswith("Killer") and t[0] in (2, 3) \
+                    and any(p >= 1000 for p in t[1:]):
+                name = "Killer Suite"
             if name:
                 fid = sub_fids[name]
         if fid:

@@ -136,6 +136,14 @@ published data schema is versioned separately (see `schema_version` in every
   drivers (MSI's whole GPU catalogue) previously 404'd out of the picker;
   it now says so and shows the silicon vendor's current driver as the
   reference (with a pointer to the NVIDIA App / Adrenalin / Arc Control).
+- The Killer family was one brand over three version schemes (Intel's own
+  release table lays it out): the Wi-Fi/Bluetooth drivers on Intel's 2x.x
+  lines, Realtek-scheme Ethernet (1168/1125/1126.x), and the Performance
+  Suite/Control Center software — a suite version was serving as "family
+  newest" over driver listings. Split into Killer Wi-Fi / Killer Bluetooth /
+  Killer LAN (Ethernet) / Killer Suite; suite 2.x/3.x versions are separated
+  from E3100-era Ethernet drivers structurally (suites always carry a ≥1000
+  version component).
 - The "≠ scheme max" footnote no longer fires on versions that are merely
   old: a major bump only counts as a parallel line when the two lines were
   published contemporaneously (AMD's 25.x packaging vs 32.x INF overlap for
