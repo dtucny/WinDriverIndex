@@ -337,6 +337,7 @@ def _emit_by_board(conn, out, families, water, board_lag, bios_per_board,
     # newest version ON ITS OWN LINE; the cross-scheme family water stays as
     # context (lag is date-derived and unaffected).
     line_top: dict = {}
+    line_span: dict = {}   # (family, major) -> [first, last] release date
     import re as _re
     for r in conn.execute(
             "SELECT artefact_id, family_id, version_raw, release_date"
@@ -349,6 +350,10 @@ def _emit_by_board(conn, out, families, water, board_lag, bios_per_board,
         if "/" in raw and len(_re.findall(r"\d+(?:\.\d+){2,}", raw)) >= 2:
             continue   # slash-combos: one arbitrary member's tuple, skip
         k = (r["family_id"], e.tuple[0])
+        if r["release_date"]:
+            s = line_span.setdefault(k, [r["release_date"], r["release_date"]])
+            s[0] = min(s[0], r["release_date"])
+            s[1] = max(s[1], r["release_date"])
         cur = line_top.get(k)
         if cur is None or versions.compare_key(e) > versions.compare_key(cur[0]):
             disp = (_nv_marketing(raw)
@@ -370,13 +375,19 @@ def _emit_by_board(conn, out, families, water, board_lag, bios_per_board,
             w = level[e["family_id"]]
             maj = e["effective_major"]
             same = line_top.get((e["family_id"], maj)) if maj is not None else None
-            same_differs = bool(
-                same and versions.parse(w["version"]).tuple
-                and versions.parse(w["version"]).tuple[0] != maj
-                # the INF→marketing translation makes this family single-
-                # scheme: 591.x vs 616.x are directly comparable, so a
-                # same-line footnote would be noise, not a scheme bridge
-                and fam["name"] != "NVIDIA Graphics")
+            wt = versions.parse(w["version"]).tuple
+            same_differs = bool(same and wt and wt[0] != maj)
+            if same_differs:
+                # a major bump is only a PARALLEL line when the two lines
+                # were published contemporaneously (AMD's 25.x packaging vs
+                # 32.x INF overlap for years). A line that simply ENDED
+                # before the water's line began — Intel Bluetooth 21.x vs
+                # 24.x, any old NVIDIA branch — is one scheme marching on,
+                # and the footnote would misread as incomparability.
+                sl, sw = (line_span.get((e["family_id"], maj)),
+                          line_span.get((e["family_id"], wt[0])))
+                if sl and sw and (sl[1] < sw[0] or sw[1] < sl[0]):
+                    same_differs = False
             fams.append({
                 "family": fam["name"], "component": fam["component"],
                 "listed_version": e["listed_version"],

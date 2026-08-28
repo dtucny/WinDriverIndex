@@ -136,6 +136,16 @@ published data schema is versioned separately (see `schema_version` in every
   drivers (MSI's whole GPU catalogue) previously 404'd out of the picker;
   it now says so and shows the silicon vendor's current driver as the
   reference (with a pointer to the NVIDIA App / Adrenalin / Arc Control).
+- The "≠ scheme max" footnote no longer fires on versions that are merely
+  old: a major bump only counts as a parallel line when the two lines were
+  published contemporaneously (AMD's 25.x packaging vs 32.x INF overlap for
+  years; Intel Bluetooth 21.x simply ended before 24.x began). Where lines
+  genuinely run in parallel the label now says so instead of claiming a
+  different scheme.
+- Intel UHD/HD/Iris graphics packages were landing in the Intel Wi-Fi
+  family ("Intel UHD Graphics 630" matched the Wi-Fi rule's 630 token) and
+  a graphics version topped the Wi-Fi water; Intel's WAPI driver similarly
+  polluted the Wi-Fi 21.x line. Both routed to their own families.
 - The AMD Graphics upstream now records the INF-scheme "Windows Driver
   Store Version" from AMD's release notes (32.0.31041.1004 for Adrenalin
   26.8.1) instead of the marketing string, so AMD's own newest orders

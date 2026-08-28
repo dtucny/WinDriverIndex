@@ -93,6 +93,15 @@ RULES: list[tuple[str, str, str, list[str]]] = [
     ("Intel LAN", "intel", "lan", [r"intel (lan|network|ethernet)", r"61 intel",
      r"intel.*ethernet"]),
     ("Intel Bluetooth", "intel", "bluetooth", [r"intel blue", r"intel bt\b", r"ax2\d\d.*bluetooth", r"\b607\b"]),
+    # iGPU phrasings must beat Intel Wi-Fi: 'Intel UHD Graphics 630 Driver'
+    # matched the Wi-Fi rule's \b630\b and put a 26.20.100.x GRAPHICS version
+    # at the top of the Wi-Fi water (caught via a Dell Inspiron listing)
+    ("Intel VGA", "intel", "graphics",
+     [r"uhd graphics", r"iris xe", r"intel hd graphics"]),
+    # niche China-market WAPI driver: 'Intel Wireless ...' phrasing, but its
+    # 21.2010.x versions are not the WLAN driver line
+    ("Intel WAPI", "intel", "wlan",
+     [r"authentication and privacy infrastructure"]),
     ("Intel Wi-Fi", "intel", "wlan",
      # bare 'Wi-Fi Driver V22.x' on ASUS Intel boards is Intel's 22.x line
      [r"intel.{0,4}wi-?fi", r"ax2\d\d.*wi-?fi", r"wifi intel", r"\b630\b",
