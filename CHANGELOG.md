@@ -131,6 +131,12 @@ published data schema is versioned separately (see `schema_version` in every
   Intel-scheme version, nudging the NVIDIA same-line footnote.
 
 ### Fixed
+
+- NVIDIA versions are now one comparable line: vendors list the package's
+  INF DriverVer (`32.0.15.9186`) while NVIDIA speaks marketing (`591.86`);
+  the algorithmic translation is applied for ordering and shown alongside
+  the raw listing, so a card row reads `32.0.15.9186 = 591.86` against
+  water `616.56` instead of two unrelated-looking numbers.
 - Water-level integrity hardening: a majority-version-line guard stops
   vendor mislabels from topping a family with a foreign scheme (ASUS ships
   graphics 31.0.101.x and chipset 10.1.x packages titled 'Intel GNA Driver',

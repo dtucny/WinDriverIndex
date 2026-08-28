@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import re
 import sqlite3
 from collections import defaultdict
 
@@ -75,6 +76,19 @@ def run(conn: sqlite3.Connection, *, log=print) -> dict:
             "boards": len(boards), "hwids": n_hwid, "failed": 0}
 
 
+# NVIDIA stamps Windows packages with the INF DriverVer (3x.0.1D.DDDD) while
+# NVIDIA itself — and ASUS, and the family water level — speak the marketing
+# scheme (591.86 = ...15.9186: last digit of the third field + the fourth).
+# Translating INF-scheme listings puts the whole family on one comparable
+# line. Intel's 32.0.101.xxxx has a three-digit third field and never matches.
+_NV_INF = re.compile(r"3\d\.0\.1(\d)\.(\d{4})\s*$")
+
+
+def _nv_marketing(raw: str | None) -> str | None:
+    m = _NV_INF.fullmatch((raw or "").strip())
+    return f"{m.group(1)}{m.group(2)[:2]}.{m.group(2)[2:]}" if m else None
+
+
 def _effective_versions(conn) -> dict[int, versions.ParsedVersion]:
     """Comparable version per artefact. Vendors sometimes renumber the same
     driver with their own scheme (AMD's '1.8240.169' for MediaTek's
@@ -88,10 +102,17 @@ def _effective_versions(conn) -> dict[int, versions.ParsedVersion]:
     Same-major scoping keeps the renumbering fix — the rebadged driver shares
     the listing's major — while rejecting unrelated bundled components."""
     eff: dict[int, versions.ParsedVersion] = {}
-    for r in conn.execute("SELECT artefact_id, version_raw, sha256 FROM artefact"
-                          " WHERE kind = 'driver'"):
+    for r in conn.execute(
+            "SELECT a.artefact_id, a.version_raw, a.sha256, f.name fname"
+            " FROM artefact a LEFT JOIN family f ON f.family_id = a.family_id"
+            " WHERE a.kind = 'driver'"):
         listing = versions.parse(r["version_raw"])
         eff[r["artefact_id"]] = listing
+        if r["fname"] == "NVIDIA Graphics":
+            mk = _nv_marketing(r["version_raw"])
+            if mk:
+                eff[r["artefact_id"]] = versions.parse(mk)
+                continue   # marketing scheme is already canonical — no INF pass
         if not r["sha256"] or not listing.tuple:
             continue
         same_major = [
@@ -251,6 +272,11 @@ def _lag(conn, families, water, effective) -> tuple[list[dict], list[dict]]:
                  # what the vendor page shows — the INF-canonical 'effective'
                  # version is for ordering and lag, never for display
                  "listed_version": r["version_raw"],
+                 # exception: the NVIDIA INF→marketing translation IS shown,
+                 # since the water speaks marketing (32.0.15.9186 = 591.86)
+                 "listed_equiv": (_nv_marketing(r["version_raw"])
+                                  if families[fid]["name"] == "NVIDIA Graphics"
+                                  else None),
                  "effective_major": (effective[r["artefact_id"]].tuple or (None,))[0],
                  "listed_date": r["listed_date"], "lag_days": lag}
         board_lag.append(entry)
@@ -324,7 +350,10 @@ def _emit_by_board(conn, out, families, water, board_lag, bios_per_board,
         k = (r["family_id"], e.tuple[0])
         cur = line_top.get(k)
         if cur is None or versions.compare_key(e) > versions.compare_key(cur[0]):
-            line_top[k] = (e, r["release_date"], r["version_raw"])
+            disp = (_nv_marketing(raw)
+                    if families[r["family_id"]]["name"] == "NVIDIA Graphics"
+                    else None)
+            line_top[k] = (e, r["release_date"], disp or r["version_raw"])
     from collections import defaultdict as _dd
     per: dict[int, list] = _dd(list)
     for e in board_lag:
@@ -340,10 +369,15 @@ def _emit_by_board(conn, out, families, water, board_lag, bios_per_board,
             same = line_top.get((e["family_id"], maj)) if maj is not None else None
             same_differs = bool(
                 same and versions.parse(w["version"]).tuple
-                and versions.parse(w["version"]).tuple[0] != maj)
+                and versions.parse(w["version"]).tuple[0] != maj
+                # the INF→marketing translation makes this family single-
+                # scheme: 591.x vs 616.x are directly comparable, so a
+                # same-line footnote would be noise, not a scheme bridge
+                and fam["name"] != "NVIDIA Graphics")
             fams.append({
                 "family": fam["name"], "component": fam["component"],
                 "listed_version": e["listed_version"],
+                "listed_equiv": e["listed_equiv"],
                 "listed_date": e["listed_date"],
                 "water_version": w["version"],
                 "water_first_published": w["first_published"],

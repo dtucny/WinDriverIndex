@@ -36,3 +36,13 @@ def test_ordering():
 
 def test_unparseable_sorts_lowest():
     assert versions.compare_key(versions.parse("F32a")) < versions.compare_key(versions.parse("0.1"))
+
+
+def test_nvidia_inf_to_marketing():
+    from winidx.publish import _nv_marketing
+    assert _nv_marketing("32.0.15.9186") == "591.86"
+    assert _nv_marketing("31.0.15.3623") == "536.23"
+    assert _nv_marketing("32.0.16.1074") == "610.74"
+    assert _nv_marketing("616.56") is None          # already marketing
+    assert _nv_marketing("32.0.101.8991") is None   # Intel scheme
+    assert _nv_marketing(None) is None
