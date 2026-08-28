@@ -62,6 +62,37 @@ _DATE = re.compile(r"(\d{1,2})/(\d{1,2})/(\d{4})")
 def crawl(conn: sqlite3.Connection, client, run_date: str,
           *, limit: int | None = None, log=print) -> dict:
     pages = PAGES[:limit] if limit else PAGES
+    return _crawl_pages(conn, client, run_date, pages, log)
+
+
+_RN_HREF = re.compile(r'href="(/en/resources/support-articles/release-notes/'
+                      r'[^"]+)"')
+_STORE_VER = re.compile(r"Windows Driver Store Version\s*"
+                        r"(3\d\.0\.\d{4,5}\.\d+)")
+
+
+def _amd_store_version(client, drivers_body: str, log) -> str | None:
+    """INF-scheme version from the release notes linked on the drivers page.
+    A notes page can carry several editions (Adrenalin + PRO); the max is
+    the current consumer branch."""
+    href = _RN_HREF.search(drivers_body)
+    if not href:
+        log("  silicon: AMD release-notes link not found — keeping marketing version")
+        return None
+    try:
+        body = client.get("https://www.amd.com" + href.group(1),
+                          snapshot="si_amd_graphics_rn.html"
+                          ).content.decode("utf-8", "replace")
+    except Exception as exc:
+        log(f"  silicon: AMD release notes fetch failed — {str(exc)[:60]}")
+        return None
+    hits = [m.group(1) for m in _STORE_VER.finditer(body)
+            if versions.parse(m.group(1)).tuple]
+    return max(hits, key=lambda v: versions.compare_key(versions.parse(v))) \
+        if hits else None
+
+
+def _crawl_pages(conn, client, run_date, pages, log):
     n = n_new = 0
     for family, url, pattern in pages:
         fam = conn.execute("SELECT family_id FROM family WHERE name = ?",
@@ -108,6 +139,18 @@ def crawl(conn: sqlite3.Connection, client, run_date: str,
         else:
             date = (f"{dm.group(3)}-{int(dm.group(1)):02d}-{int(dm.group(2)):02d}"
                     if dm else None)
+        desc = f"Silicon-vendor download page: {family}"
+        if family == "AMD Graphics":
+            # AMD's marketing string (26.8.1) can't be ordered against the
+            # INF-scheme versions every board vendor lists, and the mapping
+            # is a lookup table, not an algorithm (31.0.24002.92 = Adrenalin
+            # 23.40.02). The linked release notes publish the INF form —
+            # 'Windows Driver Store Version 32.0.31041.1004' — so record
+            # THAT as the version and keep the marketing name in the text.
+            store = _amd_store_version(client, body, log)
+            if store:
+                desc = f"Adrenalin {ver} — {desc}"
+                ver = store
         _, is_new = db.upsert_artefact(
             conn, run_date, vendor=VENDOR,
             vendor_artefact_id=family,
@@ -118,7 +161,7 @@ def crawl(conn: sqlite3.Connection, client, run_date: str,
             version_normalised=versions.parse(ver).normalised_json,
             release_date=date,
             os_raw="Win11 64",
-            description_text=f"Silicon-vendor download page: {family}",
+            description_text=desc,
             url=url,
         )
         n += 1
