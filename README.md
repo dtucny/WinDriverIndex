@@ -1,8 +1,9 @@
 # WinDriverIndex
 
-A public, machine-readable index of motherboard driver versions across MSI,
-Gigabyte, ASRock, and ASUS — and the **vendor lag metric**: how far behind the
-newest available driver each vendor's board listings sit.
+A public, machine-readable index of Windows driver versions across
+motherboards (MSI, Gigabyte, ASRock, ASUS), laptops and desktops (Lenovo,
+Dell), and graphics cards — and the **vendor lag metric**: how far behind the
+newest available driver each vendor's listings sit.
 
 ## 🔗 Live index — https://windriverindex.tucny.com
 
@@ -13,7 +14,7 @@ Static JSON, CORS-enabled, served from Cloudflare. Start here:
 | [`/v1/latest/water-level.json`](https://windriverindex.tucny.com/v1/latest/water-level.json) | Newest known version per driver family |
 | [`/v1/latest/vendor-lag.json`](https://windriverindex.tucny.com/v1/latest/vendor-lag.json) | The vendor-lag metric |
 | [`/v1/latest/families.json`](https://windriverindex.tucny.com/v1/latest/families.json) | Family table with HWID sets |
-| [`/v1/latest/boards.json`](https://windriverindex.tucny.com/v1/latest/boards.json) | Board catalogue (chipset / socket) |
+| [`/v1/latest/boards.json`](https://windriverindex.tucny.com/v1/latest/boards.json) | Device catalogue (chipset / socket / product type) |
 | `/v1/latest/by-hwid/{hwid}.json` | Point lookup by hardware ID |
 
 `latest/` tracks the newest crawl; pin an immutable dated snapshot at
@@ -94,4 +95,5 @@ resumes from its snapshots.
 - Polite crawling: sequential, ≥1.5 s between same-host requests, honest
   User-Agent wherever the vendor's edge allows it (Gigabyte's does not — see
   findings).
-- Windows 11 x64 scope; AM4/AM5 and Intel 600/700/800 desktop boards.
+- Windows 11 x64 scope; AM4 (500-series)/AM5 and Intel 600/700/800 desktop
+  boards, Win11-era Lenovo and Dell systems, RTX 30+/RX 6000+/Arc cards.
