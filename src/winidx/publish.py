@@ -329,8 +329,9 @@ def _emit_by_board(conn, out, families, water, board_lag, bios_per_board,
     (out / "by-board").mkdir(parents=True, exist_ok=True)
     level = {w["family_id"]: w for w in water}
     boards = {r["board_id"]: dict(r) for r in conn.execute(
-        "SELECT board_id, vendor, name, slug, chipset, socket, support_url"
-        " FROM board")}
+        "SELECT board_id, vendor, name, slug, chipset, socket, product_type,"
+        " support_url FROM board")}
+    water_by_name = {families[w["family_id"]]["name"]: w for w in water}
     # newest per (family, major-version-line): vendors number the same driver
     # in incompatible schemes, so a listing's honest comparison target is the
     # newest version ON ITS OWN LINE; the cross-scheme family water stays as
@@ -359,8 +360,10 @@ def _emit_by_board(conn, out, families, water, board_lag, bios_per_board,
     for e in board_lag:
         per[e["board_id"]].append(e)
     n = 0
-    for bid, entries in per.items():
-        b = boards[bid]
+    # every board gets a page — a card whose vendor lists no drivers at all
+    # (MSI's entire GPU catalogue) must say so, not 404 out of the picker
+    for bid, b in boards.items():
+        entries = per.get(bid, [])
         fams = []
         for e in sorted(entries, key=lambda x: families[x["family_id"]]["name"]):
             fam = families[e["family_id"]]
@@ -388,12 +391,27 @@ def _emit_by_board(conn, out, families, water, board_lag, bios_per_board,
                 "upstream_only": w["upstream_only"],
                 "lag_days": e["lag_days"],
             })
+        # a graphics card with no GPU-driver row still has an authoritative
+        # reference: the silicon vendor's current driver for its chip
+        gpu_ref = None
+        if b["product_type"] == "graphics-card":
+            chip = (b["chipset"] or "").upper()
+            ref_fam = ("NVIDIA Graphics" if chip.startswith("RTX")
+                       else "AMD Graphics" if chip.startswith("RX")
+                       else "Intel VGA" if chip.startswith("ARC") else None)
+            if ref_fam and ref_fam not in {f["family"] for f in fams}:
+                w = water_by_name.get(ref_fam)
+                if w:
+                    gpu_ref = {"family": ref_fam, "water_version": w["version"],
+                               "water_first_published": w["first_published"]}
         payload = {
             "schema_version": SCHEMA_VERSION, "generated": generated,
             "caveat": CAVEAT,
             "board": {k: b[k] for k in ("board_id", "vendor", "name", "slug",
-                                        "chipset", "socket", "support_url")},
+                                        "chipset", "socket", "product_type",
+                                        "support_url")},
             "bios": bios_per_board.get(bid),
+            "gpu_reference": gpu_ref,
             "families": fams,
         }
         (out / "by-board" / f"{bid}.json").write_text(

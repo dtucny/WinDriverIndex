@@ -132,6 +132,10 @@ published data schema is versioned separately (see `schema_version` in every
 
 ### Fixed
 
+- Every board now gets a picker page — a card whose vendor lists no
+  drivers (MSI's whole GPU catalogue) previously 404'd out of the picker;
+  it now says so and shows the silicon vendor's current driver as the
+  reference (with a pointer to the NVIDIA App / Adrenalin / Arc Control).
 - The AMD Graphics upstream now records the INF-scheme "Windows Driver
   Store Version" from AMD's release notes (32.0.31041.1004 for Adrenalin
   26.8.1) instead of the marketing string, so AMD's own newest orders
