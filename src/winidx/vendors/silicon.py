@@ -54,6 +54,12 @@ PAGES: list[tuple[str, str, str]] = [
      "https://www.intel.com/content/www/us/en/download/18649/"
      "intel-wireless-bluetooth-for-windows-10-and-windows-11.html",
      r"[Vv]ersion[^0-9]{0,20}(\d+(?:\.\d+){2,3})"),
+    # package version is NN.YY.mdd.build; the loose shape must not match the
+    # Realtek-scheme adapter drivers also on the page (1168.28.50.1224)
+    ("Killer Suite",
+     "https://www.intel.com/content/www/us/en/download/19779/"
+     "intel-killer-performance-suite.html",
+     r"\b(\d{2}\.\d{2}\.\d{3}\.\d{4})\b"),
 ]
 
 _DATE = re.compile(r"(\d{1,2})/(\d{1,2})/(\d{4})")

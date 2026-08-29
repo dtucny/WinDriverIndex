@@ -46,3 +46,11 @@ def test_nvidia_inf_to_marketing():
     assert _nv_marketing("616.56") is None          # already marketing
     assert _nv_marketing("32.0.101.8991") is None   # Intel scheme
     assert _nv_marketing(None) is None
+
+
+def test_realtek_uad_to_canonical():
+    from winidx.publish import _rtk_uad
+    assert _rtk_uad("10007.1_UAD_WHQL") == "6.0.10007.1"
+    assert _rtk_uad("9679.1 UAD") == "6.0.9679.1"
+    assert _rtk_uad("6.0.9679.1") is None
+    assert _rtk_uad(None) is None

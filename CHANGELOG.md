@@ -136,6 +136,19 @@ published data schema is versioned separately (see `schema_version` in every
   drivers (MSI's whole GPU catalogue) previously 404'd out of the picker;
   it now says so and shows the silicon vendor's current driver as the
   reference (with a pointer to the NVIDIA App / Adrenalin / Arc Control).
+- A systematic water audit caught six more families where a single
+  vendor's fringe version line had won the water on a restamped date
+  (Camera 81.x, Fingerprint 40.x, Intel ME—kept, see below—Thunderbolt
+  61.3, WWAN 18300.x, Realtek Audio's bare-build UAD form). The
+  majority-line guard now distinguishes sequential lines (Intel ME's
+  year-week majors march 2512→2620: trusted) from parallel ones, where a
+  fringe line needs a second vendor's corroboration (Intel RST 21.x,
+  listed by Dell and Lenovo, correctly survives).
+- ASRock's bare-build Realtek UAD versions (10007.1_UAD) now translate
+  to the canonical 6.0.x form for ordering, via the same per-family
+  scheme-translator mechanism as NVIDIA INF→marketing.
+- Intel's Killer Performance Suite page joins the silicon upstream
+  sources (50.26.625.2482).
 - The Killer family was one brand over three version schemes (Intel's own
   release table lays it out): the Wi-Fi/Bluetooth drivers on Intel's 2x.x
   lines, Realtek-scheme Ethernet (1168/1125/1126.x), and the Performance

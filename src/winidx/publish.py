@@ -89,6 +89,21 @@ def _nv_marketing(raw: str | None) -> str | None:
     return f"{m.group(1)}{m.group(2)[:2]}.{m.group(2)[2:]}" if m else None
 
 
+# ASRock writes Realtek UAD audio versions as the bare build ('10007.1_UAD_
+# WHQL'); the canonical form every other vendor lists is 6.0.<build>.<rev>.
+_RTK_UAD = re.compile(r"(\d{4,5})\.(\d+)[_ ]?UAD", re.I)
+
+
+def _rtk_uad(raw: str | None) -> str | None:
+    m = _RTK_UAD.match((raw or "").strip())
+    return f"6.0.{m.group(1)}.{m.group(2)}" if m else None
+
+
+# per-family listing→canonical-scheme translators: applied for ordering, and
+# surfaced as listed_equiv so the board view shows the comparable form
+SCHEME_EQUIV = {"NVIDIA Graphics": _nv_marketing, "Realtek Audio": _rtk_uad}
+
+
 def _effective_versions(conn) -> dict[int, versions.ParsedVersion]:
     """Comparable version per artefact. Vendors sometimes renumber the same
     driver with their own scheme (AMD's '1.8240.169' for MediaTek's
@@ -108,11 +123,10 @@ def _effective_versions(conn) -> dict[int, versions.ParsedVersion]:
             " WHERE a.kind = 'driver'"):
         listing = versions.parse(r["version_raw"])
         eff[r["artefact_id"]] = listing
-        if r["fname"] == "NVIDIA Graphics":
-            mk = _nv_marketing(r["version_raw"])
-            if mk:
-                eff[r["artefact_id"]] = versions.parse(mk)
-                continue   # marketing scheme is already canonical — no INF pass
+        conv = SCHEME_EQUIV.get(r["fname"])
+        if conv and (mk := conv(r["version_raw"])):
+            eff[r["artefact_id"]] = versions.parse(mk)
+            continue   # canonical scheme reached — no INF pass
         if not r["sha256"] or not listing.tuple:
             continue
         same_major = [
@@ -200,12 +214,32 @@ def _water_level(conn, families, effective) -> list[dict]:
         if (top["source_type"] == "vendor"
                 and effective[top["artefact_id"]].tuple[0] != dom
                 and majors[dom] >= 3):
+            tmaj = effective[top["artefact_id"]].tuple[0]
+
+            def _span(m):
+                ds = [r["release_date"] for r in rows if r["release_date"]
+                      and effective[r["artefact_id"]].tuple[0] == m]
+                return (min(ds), max(ds)) if ds else None
+            st, sd = _span(tmaj), _span(dom)
             cand = max((r for r in rows
                         if effective[r["artefact_id"]].tuple[0] == dom),
                        key=lambda r: versions.compare_key(effective[r["artefact_id"]]))
             td, cd = top["release_date"], cand["release_date"]
-            if cd and (not td or cd > td):
-                top = cand
+            if st and sd and st[1] < sd[0]:
+                top = cand   # the outlier's whole line predates the dominant one
+            elif st and sd and st[0] > sd[1]:
+                pass         # sequential scheme marching on (Intel ME's
+                             # year-week majors: 2512 ended before 2620 began)
+            else:
+                # parallel lines: a single vendor's fringe line never outranks
+                # the dominant one — Dell restamps handed date-newer wins to
+                # Camera 81.x, Fingerprint 40.x, Thunderbolt 61.3, WWAN
+                # 18300.x. Corroborated lines (Intel RST 21 by Dell+Lenovo)
+                # keep the original date arbitration.
+                line_vendors = {r["vendor"] for r in rows
+                                if effective[r["artefact_id"]].tuple[0] == tmaj}
+                if len(line_vendors) < 2 or (cd and (not td or cd > td)):
+                    top = cand
         top_tuple = effective[top["artefact_id"]].tuple
         at_top = [r for r in rows if effective[r["artefact_id"]].tuple == top_tuple]
         dates = [r["release_date"] for r in at_top if r["release_date"]]
@@ -274,8 +308,8 @@ def _lag(conn, families, water, effective) -> tuple[list[dict], list[dict]]:
                  "listed_version": r["version_raw"],
                  # exception: the NVIDIA INF→marketing translation IS shown,
                  # since the water speaks marketing (32.0.15.9186 = 591.86)
-                 "listed_equiv": (_nv_marketing(r["version_raw"])
-                                  if families[fid]["name"] == "NVIDIA Graphics"
+                 "listed_equiv": (conv(r["version_raw"]) if (conv :=
+                                  SCHEME_EQUIV.get(families[fid]["name"]))
                                   else None),
                  "effective_major": (effective[r["artefact_id"]].tuple or (None,))[0],
                  "listed_date": r["listed_date"], "lag_days": lag}
@@ -356,9 +390,8 @@ def _emit_by_board(conn, out, families, water, board_lag, bios_per_board,
             s[1] = max(s[1], r["release_date"])
         cur = line_top.get(k)
         if cur is None or versions.compare_key(e) > versions.compare_key(cur[0]):
-            disp = (_nv_marketing(raw)
-                    if families[r["family_id"]]["name"] == "NVIDIA Graphics"
-                    else None)
+            conv = SCHEME_EQUIV.get(families[r["family_id"]]["name"])
+            disp = conv(raw) if conv else None
             line_top[k] = (e, r["release_date"], disp or r["version_raw"])
     from collections import defaultdict as _dd
     per: dict[int, list] = _dd(list)
