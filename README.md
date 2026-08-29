@@ -2,7 +2,7 @@
 
 A public, machine-readable index of Windows driver versions across
 motherboards (MSI, Gigabyte, ASRock, ASUS), laptops and desktops (Lenovo,
-Dell), and graphics cards — and the **vendor lag metric**: how far behind the
+Dell, HP), and graphics cards — and the **vendor lag metric**: how far behind the
 newest available driver each vendor's listings sit.
 
 ## 🔗 Live index — https://windriverindex.tucny.com
@@ -96,4 +96,4 @@ resumes from its snapshots.
   User-Agent wherever the vendor's edge allows it (Gigabyte's does not — see
   findings).
 - Windows 11 x64 scope; AM4 (500-series)/AM5 and Intel 600/700/800 desktop
-  boards, Win11-era Lenovo and Dell systems, RTX 30+/RX 6000+/Arc cards.
+  boards, Win11-era Lenovo, Dell, and HP systems, RTX 30+/RX 6000+/Arc cards.

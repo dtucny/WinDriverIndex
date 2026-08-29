@@ -327,3 +327,23 @@ Implications for this project:
   package with an Intel-scheme version pollutes the NVIDIA major-32
   same-line footnote (cosmetic, single package).
 - ASRock cards (Arc/Radeon) not yet enumerated — different page family.
+
+## HP (v0.3, 2026-08-28)
+
+- HPIA cloud catalog: `hpia.hpcloud.hp.com/ref/platformList.cab` (603
+  commercial platforms, per-OS `IsWindows11` flags = the era gate) +
+  `ref/{sid}/{sid}_64_11.0.{release}.cab` per platform. The release id in
+  the URL must be LOWERCASE (`22h2`; `22H2` 404s). XML is UTF-8 where
+  Dell's catalogs are UTF-16 — `_extract_cab` sniffs.
+- Solutions/UpdateInfo carry version, ISO date, category, silicon vendor,
+  ftp.hp.com URL, MD5+SHA256. Softpaq ids (spNNNNNN) are globally stable →
+  free cross-platform dedupe. Multi-name platforms (840/846/850 G5 = 83b2)
+  become one board per product name sharing artefacts.
+- HP phrasings needed rules: "Intel NIC Driver", "Intel WLAN Driver",
+  "Intel Video Driver and Control Panel" (iGPU), "Realtek High-Definition
+  (HD) Audio", "HP Integrated Audio — REALTEK".
+- Fleet posture: median lag 712 d, 99% of systems >1 yr behind on at least
+  one family, but only 6% silent ≥2 yr — HP keeps posting packages, pinned
+  at validated-but-old versions.
+- No consumer lines in HPIA (Pavilion/OMEN/Victus/Envy) — HP Support
+  Assistant has no public catalog equivalent.

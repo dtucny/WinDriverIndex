@@ -82,7 +82,11 @@ def _extract_cab(raw: bytes) -> str:
         subprocess.run([seven, "x", "-y", f"-o{td}", str(cab)],
                        capture_output=True, check=True)
         xml_path = next(pathlib.Path(td).glob("*.xml"))
-        return xml_path.read_bytes().decode("utf-16", errors="replace")
+        raw2 = xml_path.read_bytes()
+        # Dell catalogs are UTF-16, HP's HPIA references are UTF-8 — sniff
+        if raw2[:2] in (b"\xff\xfe", b"\xfe\xff") or b"\x00" in raw2[:200]:
+            return raw2.decode("utf-16", errors="replace")
+        return raw2.decode("utf-8-sig", errors="replace")
 
 
 def crawl(conn: sqlite3.Connection, client, run_date: str,

@@ -60,8 +60,8 @@ RULES: list[tuple[str, str, str, list[str]]] = [
     ("Realtek USB Audio", "realtek", "audio", [r"realtek usb audio", r"realtekusb"]),
     ("Realtek Audio", "realtek", "audio",
      [r"realtek hd (audio|universal)", r"realtekdch", r"realtek audio",
-      r"audio rtk", r"realtek high definition audio",
-      r"audio/realtek\("]),
+      r"audio rtk", r"realtek high-? ?definition",
+      r"audio/realtek\(", r"audio driver.{0,5}realtek"]),
     # AzureWave is a module maker; ASRock's AzureWave radio packages carry
     # Realtek silicon (same 1.1061.x / 2024.10.x version lines ASUS labels
     # RTK 8821/8822) — INF cross-check verifies.
@@ -109,13 +109,15 @@ RULES: list[tuple[str, str, str, list[str]]] = [
     ("Aquantia LAN", "aquantia", "lan",
      [r"aquantia", r"10g.*lan", r"marvell (ethernet|lan)", r"lan marvell"]),
     ("Intel LAN", "intel", "lan", [r"intel (lan|network|ethernet)", r"61 intel",
-     r"intel.*ethernet"]),
+     r"intel.*ethernet", r"intel nic driver"]),
     ("Intel Bluetooth", "intel", "bluetooth", [r"intel blue", r"intel bt\b", r"ax2\d\d.*bluetooth", r"\b607\b"]),
     # iGPU phrasings must beat Intel Wi-Fi: 'Intel UHD Graphics 630 Driver'
     # matched the Wi-Fi rule's \b630\b and put a 26.20.100.x GRAPHICS version
     # at the top of the Wi-Fi water (caught via a Dell Inspiron listing)
     ("Intel VGA", "intel", "graphics",
-     [r"uhd graphics", r"iris xe", r"intel hd graphics"]),
+     [r"uhd graphics", r"iris xe", r"intel hd graphics",
+      # HP's phrasing for the iGPU package
+      r"intel video driver"]),
     # niche China-market WAPI driver: 'Intel Wireless ...' phrasing, but its
     # 21.2010.x versions are not the WLAN driver line
     ("Intel WAPI", "intel", "wlan",
@@ -123,7 +125,7 @@ RULES: list[tuple[str, str, str, list[str]]] = [
     ("Intel Wi-Fi", "intel", "wlan",
      # bare 'Wi-Fi Driver V22.x' on ASUS Intel boards is Intel's 22.x line
      [r"intel.{0,4}wi-?fi", r"ax2\d\d.*wi-?fi", r"wifi intel", r"\b630\b",
-      r"wi-fi driver v22\.", r"intel wireless"]),
+      r"wi-fi driver v22\.", r"intel wireless", r"intel wlan"]),
 
     ("Intel Chipset INF", "intel", "chipset",
      [r"intel inf", r"infupdate", r"intel chipset", r"intel/inf/"]),

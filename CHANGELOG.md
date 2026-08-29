@@ -130,6 +130,14 @@ published data schema is versioned separately (see `schema_version` in every
   cosmetic quirk: one Dell manifest titles a GeForce driver with an
   Intel-scheme version, nudging the NVIDIA same-line footnote.
 
+- **HP (v0.3)**: 664 commercial systems via HPIA's cloud reference files —
+  the same per-platform XML catalog HP Image Assistant and CMSL consume.
+  Era gate is HP's own IsWindows11 flag (436 of 603 platforms). EliteBook/
+  ProBook/ZBook/desks/Z through the 2025 "G1a" AI PCs; softpaq ids dedupe
+  across platforms; the catalog publishes SHA256 so fetch stays
+  metadata-only. Consumer lines (Pavilion/OMEN/Victus) have no public
+  catalog — documented gap, as with Lenovo consumer.
+
 ### Fixed
 
 - Every board now gets a picker page — a card whose vendor lists no
