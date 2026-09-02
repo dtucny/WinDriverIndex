@@ -273,6 +273,22 @@ BUNDLE_OK: set[frozenset] = {
     frozenset(p) for p in [
         ("Intel Chipset INF", "Intel Serial I/O"),
         ("Intel Chipset INF", "Intel GNA"),
+        # the chipset INF utility bundles every platform-component INF
+        ("Intel Chipset INF", "Intel IPF"),
+        ("Intel Chipset INF", "Intel DTT"),
+        ("Intel Chipset INF", "Intel PMT"),
+        ("Intel Chipset INF", "Intel HID Event Filter"),
+        # OEM laptop audio packages carry the same Realtek HDA (and Intel
+        # SST/GNA companion) INFs the retail packages ship
+        ("Laptop OEM Audio", "Realtek Audio"),
+        ("Laptop OEM Audio", "Intel GNA"),
+        # AMD graphics preinstall bundles carry the RAID bottom drivers,
+        # and chipset installers bundle GPU INFs (allowed() strips the
+        # ' (preinstall)' suffix before matching, so plain names suffice)
+        ("AMD RAID", "AMD Graphics"),
+        ("AMD Graphics", "AMD Chipset"),
+        # ASUS's unlabeled Wi-Fi packages are Realtek silicon
+        ("ASUS Wi-Fi (unspecified)", "Realtek Wi-Fi"),
         # Intel iGPU driver packages bundle GNA INFs too
         ("Intel VGA", "Intel GNA"),
         ("Intel DTT", "Intel IPF"),
