@@ -71,6 +71,11 @@ _GROUP = re.compile(
     r'<ManifestInformation[^>]*path="([^"]+)"[^>]*>.*?'
     r'<Hash algorithm="SHA256">([0-9a-fA-F]{64})</Hash>', re.S)
 MODEL_CAB_DIR_NAME = "modelcabs"
+# consumer catalog prefixes encode the form factor the brand name hides
+# (the 'Inspiron' brand covers notebooks AND desktops; the 7573 is a 2-in-1)
+PREFIX_PTYPE = {"INS": "laptop", "VOSNB": "laptop", "ANWNB": "laptop",
+                "INSDT": "desktop", "VOSDT": "desktop", "ANWDT": "desktop",
+                "XPSDT": "desktop"}
 
 
 def _extract_cab(raw: bytes) -> str:
@@ -125,7 +130,8 @@ def crawl(conn: sqlite3.Connection, client, run_date: str,
             mtext = _extract_cab(raw2)
         except Exception:
             continue
-        st = _ingest(conn, client, run_date, mtext, None, lambda *a: None)
+        st = _ingest(conn, client, run_date, mtext, None, lambda *a: None,
+                     default_ptype=PREFIX_PTYPE.get(_pfx))
         stats = {k: stats[k] + st[k] for k in stats}
     log(f"dell total: {stats['boards']} systems, {stats['listings']} listings, "
         f"{stats['new_artefacts']} new ({n_fetched} model cabs fetched)")
@@ -133,7 +139,7 @@ def crawl(conn: sqlite3.Connection, client, run_date: str,
 
 
 def _ingest(conn: sqlite3.Connection, client, run_date: str, text: str,
-            limit, log) -> dict:
+            limit, log, default_ptype: str | None = None) -> dict:
     raw = None  # (kept name-compatible with the original body below)
     # Era gate (Win11-only charter). Catalog DATES are useless for this:
     # Dell republishes 2012-era packages with fresh releaseDates (an E5420
@@ -185,7 +191,7 @@ def _ingest(conn: sqlite3.Connection, client, run_date: str, text: str,
         # brand alone misleads: 'XPS' covers XPS Desktops too — explicit
         # desktop words in the model name override the brand's laptop lean
         ptype = ("laptop" if any(k in brand.lower() for k in LAPTOP_BRANDS)
-                 else "desktop")
+                 else default_ptype or "desktop")
         for sid, disp in _SYS.findall(block):
             if sid not in modern_sids:
                 continue
