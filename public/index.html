@@ -247,7 +247,9 @@ below the water line.</p>
     const j=await r.json(); d=j.data; gen=j.generated;
   }catch(e){
     $('tiles').innerHTML='<div class="tile"><div class="l">Could not load dashboard data.</div></div>';
-
+    return;
+  }
+  const LABEL={msi:'MSI',asus:'ASUS',gigabyte:'Gigabyte',asrock:'ASRock',lenovo:'Lenovo',dell:'Dell',hp:'HP'};
   // what-changed section (emitted by publish as a diff vs the previous data)
   const ch=d.changes;
   if(ch && ((ch.water&&ch.water.length) || ch.new_boards_count)){
@@ -274,9 +276,6 @@ below the water line.</p>
     }
     $('chcard').innerHTML=html;
   }
-    return;
-  }
-  const LABEL={msi:'MSI',asus:'ASUS',gigabyte:'Gigabyte',asrock:'ASRock',lenovo:'Lenovo',dell:'Dell',hp:'HP'};
   const fmt=n=>n.toLocaleString('en-US');
   const yr=dd=>dd>=365?(dd/365).toFixed(1)+' yr':dd+' d';
   $('gen').textContent=(gen||'').slice(0,10);
