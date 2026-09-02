@@ -153,6 +153,12 @@
 
 <section class="tiles" id="tiles"></section>
 
+<div id="chwrap" hidden>
+<h2>What changed in the latest refresh</h2>
+<p class="note" id="chnote"></p>
+<div class="card scroll" id="chcard"></div>
+</div>
+
 <h2>How current are each vendor's listings?</h2>
 <p class="note">Ranked best to worst by median lag — the typical gap between a
 listed driver and the newest version <i>any</i> source ships for that silicon
@@ -241,6 +247,33 @@ below the water line.</p>
     const j=await r.json(); d=j.data; gen=j.generated;
   }catch(e){
     $('tiles').innerHTML='<div class="tile"><div class="l">Could not load dashboard data.</div></div>';
+
+  // what-changed section (emitted by publish as a diff vs the previous data)
+  const ch=d.changes;
+  if(ch && ((ch.water&&ch.water.length) || ch.new_boards_count)){
+    $('chwrap').hidden=false;
+    $('chnote').textContent=`Between ${(ch.since||'').slice(0,10)} and ${(ch.as_of||'').slice(0,10)}: `
+      +[ch.water&&ch.water.length?`${ch.water.length} water-level ${ch.water.length===1?'move':'moves'}`:null,
+        ch.new_boards_count?`${ch.new_boards_count} newly indexed ${ch.new_boards_count===1?'machine':'machines'}`:null]
+       .filter(Boolean).join(' · ');
+    let html='';
+    if(ch.water&&ch.water.length){
+      const rows=ch.water.slice(0,14);
+      html+=`<table><thead><tr><th>Driver family</th><th class="num">Was</th><th class="num">Now</th><th>Via</th><th class="num">Dated</th></tr></thead><tbody>`
+        +rows.map(m=>`<tr><td>${esc(m.family)}</td><td class="num">${esc(m.from||'—')}</td>`
+          +`<td class="num"><b>${esc(m.to)}</b></td><td>${esc((m.published_by||[]).map(v=>LABEL[v]||v).join(', '))}</td>`
+          +`<td class="num">${esc(m.date||'')}</td></tr>`).join('')
+        +`</tbody></table>`
+        +(ch.water.length>rows.length?`<div style="padding:8px 14px" class="note">…and ${ch.water.length-rows.length} more.</div>`:'');
+    }
+    if(ch.new_boards_count){
+      const byv={}; (ch.new_boards||[]).forEach(b=>{(byv[b.vendor]=byv[b.vendor]||[]).push(b);});
+      html+=`<div style="padding:10px 14px;border-top:1px solid var(--grid)"><b>${ch.new_boards_count}</b> newly indexed: `
+        +(ch.new_boards||[]).slice(0,8).map(b=>`<a href="/board.html#${b.board_id}">${esc(b.name)}</a>`).join(' · ')
+        +(ch.new_boards_count>8?` · …and ${ch.new_boards_count-8} more`:'')+`</div>`;
+    }
+    $('chcard').innerHTML=html;
+  }
     return;
   }
   const LABEL={msi:'MSI',asus:'ASUS',gigabyte:'Gigabyte',asrock:'ASRock',lenovo:'Lenovo',dell:'Dell',hp:'HP'};

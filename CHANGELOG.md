@@ -6,6 +6,13 @@ to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html). The
 published data schema is versioned separately (see `schema_version` in every
 `public/v1/*.json` file).
 
+### Added (unreleased)
+
+- The landing page shows what the latest data refresh changed: water-level
+  moves (family, old → new, via, dated) and newly indexed machines, diffed
+  by publish against the previously published state. A refresh that changes
+  nothing keeps the last meaningful delta on display.
+
 ## [Unreleased]
 
 ### Added (v0.2 groundwork)

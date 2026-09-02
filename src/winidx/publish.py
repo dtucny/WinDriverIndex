@@ -55,11 +55,17 @@ def run(conn: sqlite3.Connection, *, log=print) -> dict:
     water = _water_level(conn, families, effective)
     board_lag, vendor_lag = _lag(conn, families, water, effective)
 
+    # diff against the previous published state BEFORE overwriting it, so
+    # the landing page can say what a refresh actually changed
+    changes = _changes(out, water, boards, generated)
+
     bios_data = bios.compute(conn)
     bios_per_board = bios_data.pop("per_board")
     emit("bios.json", bios_data)
-    emit("dashboard.json", _dashboard(conn, families, water, board_lag,
-                                      effective, bios_data))
+    emit("changes.json", changes)
+    dash = _dashboard(conn, families, water, board_lag, effective, bios_data)
+    dash["changes"] = changes
+    emit("dashboard.json", dash)
     emit("families.json", list(families.values()))
     emit("artefacts.json", artefacts)
     emit("boards.json", boards)
@@ -102,6 +108,44 @@ def _rtk_uad(raw: str | None) -> str | None:
 # per-family listing→canonical-scheme translators: applied for ordering, and
 # surfaced as listed_equiv so the board view shows the comparable form
 SCHEME_EQUIV = {"NVIDIA Graphics": _nv_marketing, "Realtek Audio": _rtk_uad}
+
+
+def _changes(out, water, boards, generated) -> dict | None:
+    """What this publish changed vs the previously published data: water-level
+    movements and newly indexed machines. A publish that changes nothing
+    carries the last non-empty delta forward (with its original dates), so
+    the landing page keeps showing the latest meaningful refresh."""
+    def _old(name):
+        try:
+            return json.loads((out / name).read_text())
+        except Exception:
+            return None
+    ow, ob, oc = (_old("water-level.json"), _old("boards.json"),
+                  _old("changes.json"))
+    if not ow:
+        return None
+    prev = {w["family"]: w for w in ow["data"]}
+    moves = []
+    for w in water:
+        p = prev.get(w["family"])
+        if p is None or p["version"] != w["version"]:
+            moves.append({"family": w["family"],
+                          "from": p["version"] if p else None,
+                          "to": w["version"],
+                          "date": w["first_published"],
+                          "published_by": w["published_by"]})
+    new_boards = []
+    if ob:
+        old_ids = {b["board_id"] for b in ob["data"]}
+        new_boards = [{"vendor": b["vendor"], "name": b["name"],
+                       "board_id": b["board_id"]}
+                      for b in boards if b["board_id"] not in old_ids]
+    if not moves and not new_boards:
+        return oc["data"] if oc and oc.get("data") else None
+    return {"since": ow["generated"], "as_of": generated,
+            "water": sorted(moves, key=lambda m: m["family"]),
+            "new_boards_count": len(new_boards),
+            "new_boards": new_boards[:20]}
 
 
 def _effective_versions(conn) -> dict[int, versions.ParsedVersion]:
