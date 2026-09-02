@@ -14,6 +14,7 @@ global.fetch=async()=>({json:async()=>dash});
     console.log('chwrap hidden:', ch?ch.hidden:'(missing)');
     console.log('chnote:', note?note.textContent.slice(0,90):'');
     console.log('chcard rows:', card?(card.innerHTML.match(/<tr>/g)||[]).length:0);
+    console.log('vgrid rendered:', els['vgrid']?(els['vgrid'].innerHTML.match(/ptlbl/g)||[]).length+' type sections':0);
     console.log('heatwrap rendered:', els['heatwrap']?els['heatwrap'].innerHTML.length>100:false);
     console.log('bios rendered:', els['biosbody']?els['biosbody'].innerHTML.length>10:('(no biosbody el used)'));
   },300);

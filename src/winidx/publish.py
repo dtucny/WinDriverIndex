@@ -592,12 +592,23 @@ def _dashboard(conn, families, water, board_lag, effective, bios_data) -> dict:
             "chips": [[g, chips[g]] for g in _GROUP_ORDER if g in chips],
         }
 
+    # per product type within each vendor: a GPU in ASUS's "worst" slot next
+    # to MSI's motherboard (MSI cards list no drivers) is not a comparison
     best_worst = {}
     for v, bids in by_vendor.items():
-        ranked = sorted(bids, key=lambda b: (max(l["lag_days"] for l in per_board[b]),
-                                             -len(per_board[b])))
-        best_worst[v] = {"best": board_summary(ranked[0]),
-                         "worst": board_summary(ranked[-1])}
+        groups = _dd(list)
+        for b in bids:
+            groups[bmeta[b]["product_type"] or "motherboard"].append(b)
+        vb = {}
+        for pt, tb in groups.items():
+            if len(tb) < 5:
+                continue   # too small a cohort for a best/worst to mean much
+            ranked = sorted(tb, key=lambda b: (max(l["lag_days"] for l in per_board[b]),
+                                               -len(per_board[b])))
+            vb[pt] = {"boards": len(tb),
+                      "best": board_summary(ranked[0]),
+                      "worst": board_summary(ranked[-1])}
+        best_worst[v] = vb
 
     return {
         "tiles": {

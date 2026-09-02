@@ -99,6 +99,9 @@
   .vhead{display:flex;justify-content:space-between;align-items:baseline;font-weight:650;font-size:1.05rem;
     padding-bottom:10px;border-bottom:1px solid var(--grid)}
   .vhead .pos{color:var(--muted);font-size:.8rem;font-weight:400}
+  .ptlbl{font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;
+    color:var(--muted);margin-top:12px;padding-top:10px;border-top:2px solid var(--grid)}
+  .ptsec:first-of-type .ptlbl{border-top:none;margin-top:2px;padding-top:6px}
   .bw{padding:12px 0;border-bottom:1px solid var(--grid)}
   .bw:last-child{border-bottom:none;padding-bottom:0}
   .tag{font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
@@ -183,7 +186,8 @@ old-but-still-sold boards drift for years.</p>
 
 <h2>Best &amp; worst maintained, by vendor</h2>
 <p class="note">Every vendor keeps some machines current and lets others rot —
-each vendor's best-kept and most-neglected, broken down by component. The
+each vendor's best-kept and most-neglected per product type (a graphics
+card and a motherboard aren't the same race), broken down by component. The
 chips show <b>where</b> the lag is: one stale driver reads very differently
 from a machine abandoned across the board.</p>
 <div class="vgrid" id="vgrid"></div>
@@ -342,10 +346,15 @@ below the water line.</p>
         <span class="sk">${esc(b.socket)}</span>
         <span class="hl">${hl} · ${b.families} families</span></div>
       <div class="chips">${b.chips.map(([g,l])=>chip(g,l)).join('')}</div></div>`;};
-  $('vgrid').innerHTML=order.map(v=>{const x=d.best_worst[v];if(!x)return '';
+  const PT_ORDER=[['motherboard','Motherboards'],['graphics-card','Graphics cards'],
+                  ['laptop','Laptops'],['desktop','Desktops']];
+  $('vgrid').innerHTML=order.map(v=>{const x=d.best_worst[v];
+    if(!x||!Object.keys(x).length)return '';
+    const secs=PT_ORDER.filter(([pt])=>x[pt]).map(([pt,lbl])=>{const g=x[pt];
+      return `<div class="ptsec"><div class="ptlbl">${lbl} · ${fmt(g.boards)}</div>`
+        +bw(g.best,'Best kept','good','▲')+bw(g.worst,'Most neglected','crit','▼')+`</div>`;}).join('');
     return `<div class="card vblock"><div class="vhead">${LABEL[v]||v}
-      <span class="pos">${fmt(d.vendors[v].boards)} machines</span></div>
-      ${bw(x.best,'Best kept','good','▲')}${bw(x.worst,'Most neglected','crit','▼')}</div>`;}).join('');
+      <span class="pos">${fmt(d.vendors[v].boards)} machines</span></div>${secs}</div>`;}).join('');
 
   const aw=d.bios.agesa_water;
   $('biosnote').innerHTML=`Unlike drivers, <b>BIOS pipelines stay alive</b> — the
