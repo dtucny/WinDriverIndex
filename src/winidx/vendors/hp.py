@@ -36,7 +36,7 @@ _OS = re.compile(r"<OS [^>]*>(.*?)</OS>", re.S)
 _RELEASE = re.compile(r"<OSReleaseIdFilename>([^<]+)</OSReleaseIdFilename>")
 _UPDATE = re.compile(r"<UpdateInfo ColId=.*?</UpdateInfo>", re.S)
 
-LAPTOP_WORDS = ("notebook", "mobile", "laptop", "book")
+LAPTOP_WORDS = ("notebook", "mobile", "laptop", "book", "tablet", "detachable")
 
 # Category prefix → artefact kind; everything else (Software/Utility/Dock/
 # Diagnostics/Manageability) is out of scope for the driver index.

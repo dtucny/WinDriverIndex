@@ -182,6 +182,8 @@ def _ingest(conn: sqlite3.Connection, client, run_date: str, text: str,
     n_boards = 0
     for bm in _MODEL.finditer(text):
         brand, block = bm.group(1), bm.group(2)
+        # brand alone misleads: 'XPS' covers XPS Desktops too — explicit
+        # desktop words in the model name override the brand's laptop lean
         ptype = ("laptop" if any(k in brand.lower() for k in LAPTOP_BRANDS)
                  else "desktop")
         for sid, disp in _SYS.findall(block):
@@ -189,13 +191,16 @@ def _ingest(conn: sqlite3.Connection, client, run_date: str, text: str,
                 continue
             name = f"{brand} {disp}".replace("-", " ")
             name = re.sub(r"\s+", " ", name).strip()
+            nl = name.lower()
+            pt = ("desktop" if any(k in nl for k in
+                  ("desktop", "tower", "all in one", " aio")) else ptype)
             if name in DENY_NAMES:
                 continue
             if name not in boards_by_name:
                 slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
                 boards_by_name[name] = db.upsert_board(
                     conn, run_date, vendor=VENDOR, vendor_product_id=slug,
-                    name=name, slug=slug, product_type=ptype,
+                    name=name, slug=slug, product_type=pt,
                     support_url="https://www.dell.com/support/home/en-us"
                                 f"/product-support/product/{disp.lower()}/drivers")
                 n_boards += 1
