@@ -129,9 +129,19 @@ def _changes(out, water, boards, generated) -> dict | None:
     for w in water:
         p = prev.get(w["family"])
         if p is None or p["version"] != w["version"]:
+            fv = versions.parse(p["version"]) if p else None
+            tv = versions.parse(w["version"])
+            # 'down' is not a vendor rollback: it means the previous top
+            # listing was reclassified into a more specific family (INF
+            # evidence) or respelled to its INF-canonical version
+            dirn = None
+            if fv and fv.tuple and tv.tuple:
+                dirn = ("up" if versions.compare_key(tv) > versions.compare_key(fv)
+                        else "down" if versions.compare_key(tv) < versions.compare_key(fv)
+                        else "same")
             moves.append({"family": w["family"],
                           "from": p["version"] if p else None,
-                          "to": w["version"],
+                          "to": w["version"], "dir": dirn,
                           "date": w["first_published"],
                           "published_by": w["published_by"]})
     new_boards = []

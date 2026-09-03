@@ -264,13 +264,24 @@ below the water line.</p>
        .filter(Boolean).join(' · ');
     let html='';
     if(ch.water&&ch.water.length){
+      const tup=v=>{const runs=String(v||'').match(/\d+(?:\.\d+)+/g)||[];
+        const best=runs.sort((a,b)=>b.split('.').length-a.split('.').length||b.length-a.length)[0];
+        return best?best.split('.').map(Number):null;};
+      const cmpv=(a,b)=>{const x=tup(a),y=tup(b);if(!x||!y)return 0;
+        for(let i=0;i<Math.max(x.length,y.length);i++){const dd=(x[i]||0)-(y[i]||0);if(dd)return dd>0?1:-1;}return 0;};
+      const dir=m=>m.dir||(cmpv(m.to,m.from)>0?'up':cmpv(m.to,m.from)<0?'down':'same');
+      const mark=m=>{const dd=dir(m);
+        if(dd==='up')return '<span style="color:var(--good)">▲</span> ';
+        if(dd==='down')return '<span style="color:var(--muted)" title="not a vendor rollback — the previous top listing was reclassified into a more specific family (INF evidence) or respelled to its INF-canonical version">▽</span> ';
+        return '';};
       const rows=ch.water.slice(0,14);
       html+=`<table><thead><tr><th>Driver family</th><th class="num">Was</th><th class="num">Now</th><th>Via</th><th class="num">Dated</th></tr></thead><tbody>`
         +rows.map(m=>`<tr><td>${esc(m.family)}</td><td class="num">${esc(m.from||'—')}</td>`
-          +`<td class="num"><b>${esc(m.to)}</b></td><td>${esc((m.published_by||[]).map(v=>LABEL[v]||v).join(', '))}</td>`
+          +`<td class="num">${mark(m)}<b>${esc(m.to)}</b></td><td>${esc((m.published_by||[]).map(v=>LABEL[v]||v).join(', '))}</td>`
           +`<td class="num">${esc(m.date||'')}</td></tr>`).join('')
         +`</tbody></table>`
-        +(ch.water.length>rows.length?`<div style="padding:8px 14px" class="note">…and ${ch.water.length-rows.length} more.</div>`:'');
+        +(ch.water.length>rows.length?`<div style="padding:8px 14px" class="note">…and ${ch.water.length-rows.length} more.</div>`:'')
+        +(ch.water.some(m=>dir(m)==='down')?`<div style="padding:8px 14px" class="note">▽ isn't a vendor rollback: the previous top listing was reclassified into a more specific family (INF evidence identified its silicon) or respelled to its INF-canonical version.</div>`:'');
     }
     if(ch.new_boards_count){
       const byv={}; (ch.new_boards||[]).forEach(b=>{(byv[b.vendor]=byv[b.vendor]||[]).push(b);});
