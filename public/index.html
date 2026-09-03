@@ -286,7 +286,7 @@ below the water line.</p>
     if(ch.new_boards_count){
       const byv={}; (ch.new_boards||[]).forEach(b=>{(byv[b.vendor]=byv[b.vendor]||[]).push(b);});
       html+=`<div style="padding:10px 14px;border-top:1px solid var(--grid)"><b>${ch.new_boards_count}</b> newly indexed: `
-        +(ch.new_boards||[]).slice(0,8).map(b=>`<a href="/board.html#${b.board_id}">${esc(b.name)}</a>`).join(' · ')
+        +(ch.new_boards||[]).slice(0,8).map(b=>`<a href="/board.html#${b.board_id}">${esc(LABEL[b.vendor]||b.vendor)} ${esc(b.name)}</a>`).join(' · ')
         +(ch.new_boards_count>8?` · …and ${ch.new_boards_count-8} more`:'')+`</div>`;
     }
     $('chcard').innerHTML=html;
