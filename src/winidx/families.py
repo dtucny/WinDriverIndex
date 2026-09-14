@@ -382,6 +382,7 @@ def run(conn: sqlite3.Connection, *, log=print) -> dict:
         n_assigned += 1
     conn.commit()
 
+    _untrust_shared_hashes(conn, log)
     _apply_splits(conn, family_id, log)
     _populate_hwids(conn)
     _evidence_reassign(conn, log)
@@ -396,6 +397,51 @@ def run(conn: sqlite3.Connection, *, log=print) -> dict:
         log(f"  UNMATCHED {vendor} {vid} — {desc!r}")
     return {"assigned": n_assigned, "unmatched": len(unmatched),
             "conflicts": conflicts, "failed": conflicts}
+
+
+def _untrust_shared_hashes(conn, log) -> int:
+    """A vendor listing the SAME published sha256 under two different URLs in
+    two different families is a vendor copy-paste error (ASRock 2026-09: the
+    Realtek Audio 2422 page carried the SATA Floppy 20.2.6.1025.3 hash).  Once
+    the real payload is fetched, every artefact sharing that hash inherits its
+    INF evidence, so the wrong one borrows a foreign family's INFs.  Decide by
+    content: keep the hash only on artefacts whose URL basename appears in
+    the payload's own paths; NULL it on the rest.  Runs every assign because
+    the crawler re-stamps the listed hash each run."""
+    n = 0
+    groups = conn.execute("""
+        SELECT a.vendor, a.sha256
+        FROM artefact a
+        WHERE a.sha256 IS NOT NULL AND a.source_type = 'vendor' AND a.kind = 'driver'
+        GROUP BY a.vendor, a.sha256
+        HAVING COUNT(DISTINCT a.url) > 1
+           AND COUNT(DISTINCT COALESCE(a.family_id, -1)) > 1""").fetchall()
+    for g in groups:
+        paths = [r[0].lower() for r in conn.execute(
+            "SELECT path FROM payload_file WHERE payload_sha256 = ?", (g["sha256"],))]
+        if not paths:
+            continue                      # nothing fetched yet: nothing to borrow
+        rows = conn.execute(
+            "SELECT artefact_id, vendor_artefact_id, url FROM artefact"
+            " WHERE vendor = ? AND sha256 = ?", (g["vendor"], g["sha256"])).fetchall()
+        def stem(url):
+            base = (url or "").split("?")[0].rsplit("/", 1)[-1].lower()
+            return base.rsplit(".", 1)[0] if "." in base else base
+        matching = [r for r in rows if stem(r["url"]) and
+                    any(stem(r["url"]) in pth for pth in paths)]
+        if not matching or len(matching) == len(rows):
+            continue                      # cannot tell which side is wrong
+        for r in rows:
+            if r in matching:
+                continue
+            conn.execute("UPDATE artefact SET sha256 = NULL WHERE artefact_id = ?",
+                         (r["artefact_id"],))
+            log(f"  untrusted hash: {g['vendor']} {r['vendor_artefact_id']} shares "
+                f"{g['sha256'][:12]} with {matching[0]['vendor_artefact_id']} "
+                f"(payload content matches the latter)")
+            n += 1
+    conn.commit()
+    return n
 
 
 def _artefact_hwids(conn, artefact_id) -> set[str]:

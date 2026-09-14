@@ -65,6 +65,19 @@ class _BrowserResponse:
         return self.content.decode("utf-8", errors="replace")
 
 
+def _is_challenge(html) -> bool:
+    """Only the interstitial is a challenge. A SOLVED page still embeds
+    Incapsula's sensor loader (`/_Incapsula_Resource?SWJIYLWA=…`), which
+    pg.asrock.com's index started carrying in 2026-09 — matching any
+    `_Incapsula_` string skipped that host for two refreshes. The challenge
+    iframe uses the SWUDNSAI resource; a block is the 'incident' page."""
+    if isinstance(html, bytes):
+        html = html.decode("utf-8", "replace")
+    return ("Incapsula incident" in html
+            or "_Incapsula_Resource?SWUDNSAI" in html
+            or "_Incapsula_Resource?SWCGHOEL" in html)
+
+
 class BrowserClient:
     """PoliteClient-compatible facade over a headless Camoufox page.
 
@@ -98,12 +111,12 @@ class BrowserClient:
         page.goto(url, timeout=90_000)
         html = page.content()
         for _ in range(20):                       # challenge needs a few seconds
-            if "_Incapsula_" not in html and "Incapsula incident" not in html:
+            if not _is_challenge(html):
                 break
             page.wait_for_timeout(3000)
             html = page.content()               # iframe self-refreshes in place
         self._last_request = time.monotonic()
-        if "_Incapsula_" in html or "Incapsula incident" in html:
+        if _is_challenge(html):
             raise _Challenged(url)
         content = html.encode("utf-8")
         if path:
@@ -125,7 +138,7 @@ class _CookieClient(PoliteClient):
         if snapshot and (self.snapshot_dir / snapshot).exists():
             return super().get(url, snapshot=snapshot, **kwargs)  # cache hit
         resp = super().get(url, snapshot=None, **kwargs)          # fetch, don't store
-        if b"_Incapsula_" in resp.content or b"Incapsula incident" in resp.content:
+        if _is_challenge(resp.content):
             raise _Challenged(url)
         if snapshot:
             path = self.snapshot_dir / snapshot

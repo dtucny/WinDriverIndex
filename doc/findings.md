@@ -347,3 +347,49 @@ Implications for this project:
   at validated-but-old versions.
 - No consumer lines in HPIA (Pavilion/OMEN/Victus/Envy) — HP Support
   Assistant has no public catalog equivalent.
+
+## 2026-09-13 — second full refresh: ASRock publishes a wrong SHA256
+
+- ASRock's Realtek Audio `2422_UAD_WHQL` listing carries the SHA256 of the
+  SATA Floppy `20.2.6.1025.3` zip (`c0fa7500…`). When the floppy payload was
+  fetched, the audio artefact inherited Intel RST INFs by hash and tripped
+  three INF conflicts. `assign` now runs `_untrust_shared_hashes`: one vendor,
+  one published hash, two URLs, two families → keep the hash only on the
+  artefact whose URL basename appears inside the payload's paths, NULL the
+  other. Idempotent because the crawler re-stamps listed hashes every run.
+- Phantom Gaming host (`pg.asrock.com`) was being skipped as "did not clear
+  Incapsula" — NOT a cookie problem (Camoufox is the primary path and solves
+  both hosts). Its index now embeds the post-challenge sensor loader
+  `/_Incapsula_Resource?SWJIYLWA=` on the solved page, and the crawler treated
+  any `_Incapsula_` string as a challenge. `_is_challenge` now matches only
+  the interstitial (SWUDNSAI iframe) or the incident page. pg had been
+  silently skipped since 2026-09-02 (only one board, Z790 PG Lightning SE, is
+  pg-only; every other PG board is also on www).
+- HP: six `ref miss` 404s are brand-new G2q platforms without reference cabs
+  yet — benign.
+- Extract: one ASRock payload is a non-archive .exe and one Dell Intel
+  graphics cab is corrupt (`igd11dxva32.dl_` data error) — the two
+  `failed` are expected, not pipeline faults.
+- Windows Update Catalog picker was querying Realtek Bluetooth with
+  `PCI\VEN_10EC&DEV_B851` (a Wi-Fi id) and took a **Net** driver's
+  6101.19.138.600 as the Bluetooth water. Two causes: `_VEN_IDS` knew only
+  Realtek's PCI vendor id (10EC), so every USB Bluetooth id (0BDA) was
+  dropped as "foreign silicon" and only the combo card's Wi-Fi PCI ids
+  survived; and nothing checked the returned row's class. Fixes: USB VIDs
+  added (Intel 8087, Realtek 0BDA); Bluetooth families query USB prefixes
+  only; rows whose title class word ("Net Driver Update") is known and not
+  among the family component's classes are rejected.
+- Class map calibration from the catalog snapshots: Intel SST (audio) and
+  Intel GNA (npu) rows are "System Driver Update", so audio and npu accept
+  System; Intel ME's only rows were `net` (Wi-Fi 9260 id contamination) and
+  AMD Chipset's dropped rows were AMD RAID (SCSIAdapter) — both correctly
+  rejected. Intel ME now has no upstream row, which is right.
+- Order matters: the catalog crawl ranks query ids by family HWIDs, so it
+  must run AFTER extract/assign of the same refresh, not alongside the
+  vendor crawls (running it first ranked from the previous cycle's ids and
+  picked different prefixes for AMD Graphics / Realtek Wi-Fi).
+- `publish` diffs "What changed" against the LOCAL public/v1 files. Publishing
+  twice before deploying (as when fixing something mid-refresh) shrinks the
+  delta to the minutes between the two publishes. Before the final publish,
+  restore `water-level.json`, `boards.json`, `changes.json` from the live
+  `/v1/latest/` (still the last deploy) so the delta spans deploy-to-deploy.
