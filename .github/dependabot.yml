@@ -1,0 +1,26 @@
+# Dependabot version updates. uv.lock is read and rewritten natively.
+# Security updates are a separate repo toggle:
+#   Settings -> Code security -> Dependabot security updates.
+version: 2
+updates:
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels: ["dependencies"]
+    commit-message:
+      prefix: "deps"
+    groups:
+      # camoufox drives playwright, and playwright protocol changes have
+      # broken camoufox before (setDefaultViewport on py3.14). Update them
+      # together and run an ASRock crawl before merging.
+      browser:
+        patterns: ["camoufox", "playwright"]
+      # Everything else: batch minor/patch bumps into one PR. Majors still
+      # arrive as their own PRs.
+      minor-and-patch:
+        patterns: ["*"]
+        exclude-patterns: ["camoufox", "playwright"]
+        update-types: ["minor", "patch"]
