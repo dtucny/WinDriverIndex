@@ -11,6 +11,7 @@ hashes are taken over raw bytes, decoding only feeds the metadata regexes.
 
 from __future__ import annotations
 
+import datetime as dt
 import hashlib
 import json
 import re
@@ -35,12 +36,17 @@ _HWID = re.compile(
     r"\\[A-Za-z0-9][A-Za-z0-9_&.\-]*)", re.IGNORECASE)
 
 
-def run(conn: sqlite3.Connection, *, limit: int | None = None, log=print) -> dict:
+def run(conn: sqlite3.Connection, *, limit: int | None = None,
+        retry_quarantined: bool = False, log=print) -> dict:
     (config.DATA_DIR / "tmp").mkdir(parents=True, exist_ok=True)
+    if retry_quarantined:
+        conn.execute("DELETE FROM payload_quarantine")
     done = {r[0] for r in conn.execute("SELECT DISTINCT payload_sha256 FROM payload_file")}
+    quarantined = {r[0] for r in conn.execute("SELECT payload_sha256 FROM payload_quarantine")}
     todo = [r[0] for r in conn.execute(
         "SELECT DISTINCT sha256 FROM artefact"
-        " WHERE sha256 IS NOT NULL AND kind = 'driver'") if r[0] not in done]
+        " WHERE sha256 IS NOT NULL AND kind = 'driver'")
+        if r[0] not in done and r[0] not in quarantined]
     if limit:
         todo = todo[:limit]
     n_ok = n_noinf = n_fail = 0
@@ -51,7 +57,15 @@ def run(conn: sqlite3.Connection, *, limit: int | None = None, log=print) -> dic
         try:
             files = _extract_and_index(sha, path)
         except Exception as exc:
+            # Vendor-corrupt archives (published hash matches the bytes) fail
+            # identically every run; park them so the stage's failure exit
+            # stays meaningful for systemic faults.
+            reason = " ".join(str(exc).split())[:200]   # 7z stderr starts blank
             log(f"EXTRACT FAIL {sha[:12]}: {exc}")
+            log(f"  QUARANTINED {sha[:12]} ({reason})")
+            conn.execute(
+                "INSERT OR REPLACE INTO payload_quarantine VALUES (?, ?, ?)",
+                (sha, reason, dt.date.today().isoformat()))
             n_fail += 1
             continue
         infs = [f for f in files if "meta" in f]
@@ -72,7 +86,14 @@ def run(conn: sqlite3.Connection, *, limit: int | None = None, log=print) -> dic
         n_ok += 1
         n_noinf += not infs
         log(f"extracted {sha[:12]}: {len(files)} inf/sys files, {len(infs)} INFs")
-    stats = {"extracted": n_ok, "no_inf": n_noinf, "failed": n_fail}
+    # "failed" drives the CLI exit status (stop-before-publish guard). A few
+    # corrupt vendor files are expected and now quarantined; only a run
+    # where failures outnumber successes (7-Zip missing, tmp dir full)
+    # should fail the stage.
+    systemic = n_fail > n_ok
+    stats = {"extracted": n_ok, "no_inf": n_noinf, "quarantined": n_fail,
+             "skipped_quarantined": len(quarantined),
+             "failed": n_fail if systemic else 0}
     log(f"extract: {stats}")
     return stats
 

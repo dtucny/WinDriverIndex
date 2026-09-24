@@ -101,7 +101,10 @@ def main(argv: list[str] | None = None) -> int:
 
     p = sub.add_parser("extract", help="unpack payloads, hash INF/SYS, pull HWIDs (§6.2)")
     p.add_argument("--limit", type=int, help="extract at most N payloads")
-    p.set_defaults(func=lambda a: _int_stats(extract.run(db.connect(), limit=a.limit)))
+    p.add_argument("--retry-quarantined", action="store_true",
+                   help="re-attempt payloads parked as corrupt by earlier runs")
+    p.set_defaults(func=lambda a: _int_stats(extract.run(
+        db.connect(), limit=a.limit, retry_quarantined=a.retry_quarantined)))
 
     p = sub.add_parser("assign", help="family assignment via rules + INF cross-check (§6)")
     p.set_defaults(func=lambda a: _int_stats(families.run(db.connect())))

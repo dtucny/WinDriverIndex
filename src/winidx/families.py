@@ -291,6 +291,13 @@ BUNDLE_OK: set[frozenset] = {
         ("ASUS Wi-Fi (unspecified)", "Realtek Wi-Fi"),
         # Intel iGPU driver packages bundle GNA INFs too
         ("Intel VGA", "Intel GNA"),
+        # Dell's retail-named Realtek HDA packages (e.g. 9RT47 6.0.9954.3)
+        # carry the Intel SST/GNA companion INFs exactly like the OEM
+        # laptop audio bundles; the chipset pair is needed because the
+        # same gna.inf also sits in the chipset INF utility and the
+        # cross-check is pairwise across every family sharing the hash
+        ("Realtek Audio", "Intel GNA"),
+        ("Realtek Audio", "Intel Chipset INF"),
         ("Intel DTT", "Intel IPF"),
         ("Killer LAN", "Intel Wi-Fi"),
         ("Killer LAN", "Intel I225/I226 LAN"),

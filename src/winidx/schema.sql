@@ -100,6 +100,15 @@ CREATE TABLE IF NOT EXISTS inf (
     PRIMARY KEY (payload_sha256, path)
 );
 
+-- Payloads 7-Zip could not open: corrupt at the vendor (hash matches what
+-- they publish), so retrying every run only re-fails. Rows are skipped by
+-- extract until `winidx extract --retry-quarantined` clears them.
+CREATE TABLE IF NOT EXISTS payload_quarantine (
+    payload_sha256  TEXT PRIMARY KEY,
+    reason          TEXT NOT NULL,
+    quarantined     TEXT NOT NULL    -- ISO date of the failed extraction
+);
+
 CREATE INDEX IF NOT EXISTS idx_payload_file_hash ON payload_file (file_sha256);
 CREATE INDEX IF NOT EXISTS idx_inf_hash ON inf (inf_sha256);
 

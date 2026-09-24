@@ -39,7 +39,7 @@ uv run pytest
 ```sh
 uv run winidx crawl [vendor]   # Tier 1: refresh listings (metadata only)
 uv run winidx fetch            # Tier 2: download + hash new driver payloads
-uv run winidx extract          # unpack, hash INF/SYS, pull HWIDs
+uv run winidx extract          # unpack, hash INF/SYS, pull HWIDs (--retry-quarantined re-tries vendor-corrupt payloads)
 uv run winidx assign           # rule-based family assignment + INF cross-check
 uv run winidx publish          # water level, vendor lag -> public/v1/*.json
 uv run winidx deploy           # sync public/ to Cloudflare R2 (needs env vars)

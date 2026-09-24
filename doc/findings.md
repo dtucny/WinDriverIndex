@@ -393,3 +393,63 @@ Implications for this project:
   delta to the minutes between the two publishes. Before the final publish,
   restore `water-level.json`, `boards.json`, `changes.json` from the live
   `/v1/latest/` (still the last deploy) so the delta spans deploy-to-deploy.
+
+## 2026-09-22 — third full refresh: memory profile and a Dell audio bundle
+
+Run inside a memory-accounted systemd scope (`systemd-run --user --scope
+-p MemoryAccounting=yes`, sampling `memory.current`/`memory.stat` every 5 s):
+
+| stage | peak anon RSS | peak cgroup charge (incl. page cache) |
+|---|---|---|
+| crawl (8 sources in parallel) | 1.15 GB | 2.2 GB |
+| fetch --newest-only (494 payloads, 30 GB) | 1.2 GB | 6.0 GB |
+| extract (325 payloads) | **3.3 GB** | 7.1 GB |
+| assign / wucatalog | 45 MB | 4.5 GB |
+| publish (110k files) | 134 MB | 6.4 GB |
+
+Anonymous memory is what a box actually needs: ~3.5 GB, set by 7-Zip
+unpacking gigabyte-scale NVIDIA/Intel packages in `extract`. The crawl-stage
+figure is almost entirely the Camoufox browser for ASRock (~1.3 GB RSS);
+every Python crawler is 70–160 MB. The cgroup charge above that is
+reclaimable page cache from streaming payloads to disk, not a requirement.
+A 4 GB box works; 8 GB avoids swapping while page cache is hot.
+
+- Wall clock 3 h 44 min: crawls 2 h 23 min (Gigabyte 2 h 23 min alone —
+  its edge slow-walked us for the first 90 min with 30–80 s gaps that match
+  the 60 s request timeout + one retry, then recovered to 1–5 s; the same
+  crawl took 36 min on 09-13), fetch 1 h 12 min, extract 3 min, everything
+  else under 1 min each, deploy separate.
+- Crawl: 436 new artefacts (ASUS 191, Dell 73, Lenovo 65, MSI 36, ASRock 34,
+  Gigabyte 26, HP 11). 13 new machines, 4 water moves (Intel DTT 9.x →
+  26.03.101.171 via MSI, Intel VGA 32.0.101.9030 via silicon, two wucatalog).
+- Fetch: 13 hash mismatches, all the known kind — the three ASRock in-place
+  repacks (Floppy 9.3.3.245, ASMedia SATA3, ASMedia USB4), nine MSI md5s,
+  one Dell (YRR93). Stored under computed hash, listing hash kept.
+- Extract: 2 failures, both corrupt AT THE VENDOR (payload sha256/md5 match
+  what the vendor publishes): Gigabyte's NVIDIA 545.84 package
+  (`6036227e…`, 7-Zip "Headers Error", 616.92 from the same line extracts
+  fine) and ASUS `DRV_VGA_Intel_SZ_TSD_W11_64_V3101013678` (`b167405a…`,
+  truncated zip, `igd11dxva32.dl_` data error — the same file the 09-13 note
+  attributed to Dell; it has re-failed on every run since 08-27). Failed
+  payloads were never recorded, so they were retried each run and `extract`
+  exited 1 whenever `failed > 0`: the weekly unit's stop-before-publish
+  guard would have tripped every week. Now: a failed unpack goes into
+  `payload_quarantine` (sha, reason, date) and is skipped by later runs;
+  `winidx extract --retry-quarantined` clears the table first (use after
+  improving the unpacker). The stage's failure exit is reserved for the
+  systemic case — failures outnumbering successes (7-Zip missing, tmp
+  full) — so a handful of vendor-corrupt files never blocks publish. The
+  282 no-INF payloads are still re-unpacked every run (nothing is recorded
+  for them; ~3 min, harmless).
+- Assign: one INF conflict, `gna.inf` 3.05.00.1611 spanning Intel Chipset
+  INF / Intel GNA / Realtek Audio. Dell's retail-named "Realtek High
+  Definition Audio Driver" 9RT47 (6.0.9954.3) bundles the whole Intel
+  SST/SoundWire/GNA companion set (14 Intel INFs next to 40 Realtek/Dell
+  extension INFs) exactly like the OEM laptop audio packages.
+  `BUNDLE_OK` gains (Realtek Audio, Intel GNA) and, because the cross-check
+  is pairwise over every family sharing the hash and the same gna.inf ships
+  in the chipset INF utility, (Realtek Audio, Intel Chipset INF).
+- HP's platform list carries "HP ProDesk 405 G6 Small Form Factor PC" under
+  two platform ids; both are indexed as separate machines (5478, 5480).
+- Every published file now carries `"license": "CC-BY-4.0"` beside
+  `schema_version` (repo: MIT code, CC BY 4.0 data — LICENSE, LICENSE-DATA).
