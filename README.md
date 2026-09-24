@@ -18,7 +18,8 @@ Static JSON, CORS-enabled, served from Cloudflare. Start here:
 | `/v1/latest/by-hwid/{hwid}.json` | Point lookup by hardware ID |
 
 `latest/` tracks the newest crawl; pin an immutable dated snapshot at
-`/v1/{YYYY-MM-DD}/…` for stability. Every file carries a `schema_version`.
+`/v1/{YYYY-MM-DD}/…` for stability. Every file carries a `schema_version` and
+a `license` field.
 "Latest" means the newest version any vendor has *published*, not a judgement
 that it is good (see the caveat field in each file).
 
@@ -88,6 +89,20 @@ and refresh the cookie file to cover the main catalogue. Raw responses are snaps
 before parsing — the SQLite DB (`data/index.sqlite`) is always rebuildable
 from snapshots without re-crawling, and re-running a crawl the same day
 resumes from its snapshots.
+
+## License
+
+- **Code** (everything under `src/`, `tools/`, `tests/`, `ops/`, the dashboard
+  page): [MIT](LICENSE).
+- **Published data** (the JSON under `public/v1/` and at the live index):
+  [CC BY 4.0](LICENSE-DATA). Reuse it freely, including commercially, with a
+  credit such as "Driver version data from WinDriverIndex
+  (https://windriverindex.tucny.com), CC BY 4.0". Every published file carries
+  `"license": "CC-BY-4.0"` beside its `schema_version`.
+
+The data is a compilation of facts from vendor support sites. The driver
+packages, vendor names and brands stay with their owners; this project
+indexes them and never redistributes binaries.
 
 ## Principles
 

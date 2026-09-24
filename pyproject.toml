@@ -2,6 +2,7 @@
 name = "winidx"
 version = "0.1.0"
 description = "Motherboard driver index: crawl vendor support sites, dedup artefacts, compute the water-level metric"
+license = "MIT"
 requires-python = ">=3.14"
 dependencies = [
     "camoufox>=0.4.11",

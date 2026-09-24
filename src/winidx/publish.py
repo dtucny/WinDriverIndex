@@ -20,6 +20,8 @@ from collections import defaultdict
 from . import bios, config, versions
 
 SCHEMA_VERSION = "1.0.0"
+# Every published file carries its data license (LICENSE-DATA at repo root).
+LICENSE = "CC-BY-4.0"
 CAVEAT = ("Water level means the newest version any vendor has published, "
           "not a judgement that it is good; a vendor may legitimately "
           "withhold a regressed driver.")
@@ -32,8 +34,8 @@ def run(conn: sqlite3.Connection, *, log=print) -> dict:
 
     def emit(name: str, payload) -> None:
         (out / name).write_text(json.dumps(
-            {"schema_version": SCHEMA_VERSION, "generated": generated,
-             "caveat": CAVEAT, "data": payload},
+            {"schema_version": SCHEMA_VERSION, "license": LICENSE,
+             "generated": generated, "caveat": CAVEAT, "data": payload},
             indent=1, ensure_ascii=False) + "\n")
 
     families = {r["family_id"]: dict(r) for r in conn.execute(
@@ -401,8 +403,8 @@ def _emit_by_hwid(conn, out, families, water, generated) -> int:
         for hwid in fam["hwids"]:
             safe = hwid.replace("\\", "_").replace("&", "+")
             (out / "by-hwid" / f"{safe}.json").write_text(json.dumps(
-                {"schema_version": SCHEMA_VERSION, "generated": generated,
-                 "hwid": hwid, "family": fam["name"],
+                {"schema_version": SCHEMA_VERSION, "license": LICENSE,
+                 "generated": generated, "hwid": hwid, "family": fam["name"],
                  "water_level": w, "known_versions": known},
                 indent=1, ensure_ascii=False) + "\n")
             n += 1
@@ -503,8 +505,8 @@ def _emit_by_board(conn, out, families, water, board_lag, bios_per_board,
                     gpu_ref = {"family": ref_fam, "water_version": w["version"],
                                "water_first_published": w["first_published"]}
         payload = {
-            "schema_version": SCHEMA_VERSION, "generated": generated,
-            "caveat": CAVEAT,
+            "schema_version": SCHEMA_VERSION, "license": LICENSE,
+            "generated": generated, "caveat": CAVEAT,
             "board": {k: b[k] for k in ("board_id", "vendor", "name", "slug",
                                         "chipset", "socket", "product_type",
                                         "support_url")},

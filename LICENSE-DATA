@@ -1,0 +1,47 @@
+WinDriverIndex data license
+===========================
+
+The published index — every JSON file under public/v1/ in this repository and
+served at https://windriverindex.tucny.com/v1/ (water-level, vendor-lag,
+families, boards, artefacts, bios, dashboard, changes, by-board and by-hwid)
+— is made available under the Creative Commons Attribution 4.0 International
+License (CC BY 4.0).
+
+You are free to copy, redistribute, embed, transform and build on the data for
+any purpose, including commercially, provided you give appropriate credit.
+A short attribution is enough, for example:
+
+    Driver version data from WinDriverIndex (https://windriverindex.tucny.com),
+    CC BY 4.0.
+
+Full license text: https://creativecommons.org/licenses/by/4.0/legalcode
+
+CC BY 4.0 expressly licenses any sui generis database rights in the
+compilation, so the grant holds in the EU and UK as well as in jurisdictions
+where the individual facts are not protected.
+
+Scope and attribution to third parties
+--------------------------------------
+
+The index is a compilation of facts (driver versions, release dates, hardware
+IDs, file hashes, download URLs) derived from the public support pages and
+update catalogues of the hardware and silicon vendors it covers. This license
+covers only the compilation and the values computed from it (water level,
+vendor lag, family assignment). It grants no rights in:
+
+  - the driver packages themselves, which this project never redistributes
+    (download URLs point at the vendors' own servers and remain subject to
+    each vendor's EULA);
+  - vendor, product and brand names, which belong to their owners and are
+    used here only to identify the products the data describes.
+
+The data is provided as-is. "Water level" is the newest version any vendor has
+published, not a judgement that it is good; see the `caveat` field carried in
+each published file.
+
+Citing a stable snapshot
+------------------------
+
+`/v1/latest/` changes on every refresh. For a reproducible citation, pin the
+dated snapshot the file was taken from, `/v1/{YYYY-MM-DD}/…`, and record the
+`schema_version` and `license` fields carried at the top of every file.
