@@ -239,6 +239,10 @@ def _effective_versions(conn) -> dict[int, versions.ParsedVersion]:
     return eff
 
 
+YEAR_LINE_FAMILIES = {"MediaTek Wi-Fi 6E", "MediaTek Wi-Fi 7",
+                      "MediaTek Bluetooth (Wi-Fi 6E)", "MediaTek Bluetooth (Wi-Fi 7)"}
+
+
 def _water_level(conn, families, effective) -> list[dict]:
     result = []
     for fid, fam in sorted(families.items()):
@@ -271,6 +275,16 @@ def _water_level(conn, families, effective) -> list[dict]:
         real = [r for r in rows if not _yearish(r)]
         if real:
             rows = real
+        # MediaTek's year-numbered builds (25.40.x, 26.40.x: what Windows
+        # Update and Lenovo ship) are a second numbering of the same drivers
+        # whose 1.x/3.x/5.x line board vendors list. Nothing ties a year
+        # build to a native one, so they may not set the water over the
+        # native line; they stay visible in 'lines' for same-line checks.
+        if fam["name"] in YEAR_LINE_FAMILIES:
+            native = [r for r in rows
+                      if not 20 <= effective[r["artefact_id"]].tuple[0] <= 29]
+            if native:
+                rows = native
         top = max(rows, key=lambda r: versions.compare_key(effective[r["artefact_id"]]))
         # Best version any *board vendor* lists, for the upstream-gap metric.
         vend_rows = [r for r in rows if r["source_type"] == "vendor"]
@@ -438,7 +452,14 @@ def _lines(conn, families, effective) -> dict[int, dict[int, dict]]:
     Vendors number the same driver in incompatible schemes, so a listing's
     honest comparison target is the newest version ON ITS OWN LINE; the
     cross-scheme family water stays as context (lag is date-derived and
-    unaffected)."""
+    unaffected).
+
+    Spans and dates use each version's FIRST appearance anywhere, not every
+    listing: vendors keep re-listing old builds (a 31.x AMD graphics package
+    dated 2026-08, two years after 32.x took over), and those late listings
+    made finished lines look alive. A line's span runs from its first
+    version's appearance to its newest version's."""
+    first: dict[tuple, str] = {}          # (family, version tuple) -> first date
     lines: dict[int, dict[int, dict]] = defaultdict(dict)
     for r in conn.execute(
             "SELECT artefact_id, family_id, version_raw, release_date"
@@ -450,24 +471,52 @@ def _lines(conn, families, effective) -> dict[int, dict[int, dict]]:
         raw = r["version_raw"] or ""
         if "/" in raw and len(re.findall(r"\d+(?:\.\d+){2,}", raw)) >= 2:
             continue   # slash-combos: one arbitrary member's tuple, skip
+        if d := r["release_date"]:
+            k = (r["family_id"], e.tuple)
+            first[k] = min(first.get(k, d), d)
         ln = lines[r["family_id"]].setdefault(
             e.tuple[0], {"top": None, "date": None, "disp": None, "span": None})
-        if d := r["release_date"]:
-            sp = ln["span"] = ln["span"] or [d, d]
-            sp[0], sp[1] = min(sp[0], d), max(sp[1], d)
         if ln["top"] is None or versions.compare_key(e) > versions.compare_key(ln["top"]):
-            ln.update(top=e, date=r["release_date"],
-                      disp=_equiv(families[r["family_id"]]["name"], raw) or raw)
+            ln.update(top=e, disp=_equiv(families[r["family_id"]]["name"], raw) or raw)
+    for (fid, t), d in first.items():
+        ln = lines[fid][t[0]]
+        ln["span"] = [min(ln["span"][0], d), None] if ln["span"] else [d, None]
+    # a line ends when its NEWEST version first appeared: an older build
+    # surfacing late (first listed in 2026 though built in 2023) doesn't
+    # keep a finished line alive
+    for fid, fl in lines.items():
+        for ln in fl.values():
+            ln["date"] = first.get((fid, ln["top"].tuple))
+            if ln["span"]:
+                ln["span"][1] = max(ln["date"] or ln["span"][0], ln["span"][0])
     return lines
+
+
+# Lines must overlap this long to count as parallel: a vendor's last build on
+# the old line routinely lands a few weeks after the first on the new one
+# (AMD 31.0.24028 appeared a week after 32.0.11002).
+PARALLEL_MIN_DAYS = 90
 
 
 def _parallel(a, b) -> bool:
     """Two version lines are PARALLEL when they were published
     contemporaneously (AMD's 25.x packaging vs 32.x INF overlap for years). A
     line that simply ENDED before the other began — Intel Bluetooth 21.x vs
-    24.x, any old NVIDIA branch — is one scheme marching on, and comparing
+    24.x, AMD graphics 31.x vs 32.x — is one scheme marching on, and comparing
     across them is fine. Unknown spans count as parallel."""
-    return not (a and b and (a[1] < b[0] or b[1] < a[0]))
+    if not (a and b):
+        return True
+    overlap = (dt.date.fromisoformat(min(a[1], b[1]))
+               - dt.date.fromisoformat(max(a[0], b[0]))).days
+    return overlap >= PARALLEL_MIN_DAYS
+
+
+def _lines_parallel(family, major_a, span_a, major_b, span_b) -> bool:
+    """_parallel, plus MediaTek's year numbering: always a separate scheme
+    from the native line, however short their shared history so far."""
+    if family in YEAR_LINE_FAMILIES and (20 <= major_a <= 29) != (20 <= major_b <= 29):
+        return True
+    return _parallel(span_a, span_b)
 
 
 def _water_lines(w, fam_lines) -> list[dict]:
@@ -483,8 +532,8 @@ def _water_lines(w, fam_lines) -> list[dict]:
                     "newest_normalised": list(ln["top"].tuple),
                     "newest_date": ln["date"], "first_date": sp[0],
                     "last_date": sp[1], "water_line": major == wmaj,
-                    "parallel_to_water": (major != wmaj
-                                          and _parallel(ln["span"], wspan))})
+                    "parallel_to_water": (major != wmaj and _lines_parallel(
+                        w["family"], major, ln["span"], wmaj, wspan))})
     return sorted(out, key=lambda x: (x["last_date"] or "", x["major"]), reverse=True)
 
 
@@ -585,6 +634,49 @@ def _emit_by_family(conn, out, families, water, generated) -> int:
     return len(families)
 
 
+# Realtek stamps one build's INF two ways: X.Y.MMDD.YYYY and X.Y.50.MMDD
+# (Dell ships rt640x64.inf as both 10.080.0407.2026 and 10.080.50.0407; the
+# rt640x64.sys inside both is FileVersion 10.080.0407.2026, same size). They
+# sort far apart numerically, so infs.json folds the dated spelling into the
+# .50 row as an alias.
+_RTK_DATED = re.compile(r"^(\d+)\.(\d+)\.(\d{4})\.(\d{4})$")
+_RTK_50 = re.compile(r"^(\d+)\.(\d+)\.50\.(\d{4})$")
+# AMD renames its display INFs every release (u0403049.inf, u0199286.inf, and
+# the amdwin-u… SoftwareComponent INFs), so the file name alone doesn't
+# connect an installed AMD driver to newer ones; inf_series does.
+_AMD_RELEASE_INF = re.compile(r"^(amdwin-)?u\d{7}\.inf$")
+
+
+def _inf_series(name: str | None) -> str | None:
+    if name and (m := _AMD_RELEASE_INF.match(name)):
+        return (m.group(1) or "") + "u*.inf"
+    return name
+
+
+def _fold_realtek_aliases(groups: dict) -> None:
+    """Merge a dated-spelling row into its .50 twin (same INF, same date,
+    same X.Y), keeping the dated string in driver_ver_aliases."""
+    for (key, ver), g in list(groups.items()):
+        m = _RTK_DATED.match(ver)
+        d = g["driver_date"]
+        if not m or not d or m.group(4) != d[:4] or m.group(3) != d[5:7] + d[8:10]:
+            continue
+        twin = next((t for (k2, v2), t in groups.items() if k2 == key
+                     and (m2 := _RTK_50.match(v2)) and t["driver_date"] == d
+                     and m2.group(3) == m.group(3)
+                     and (int(m2.group(1)), int(m2.group(2)))
+                     == (int(m.group(1)), int(m.group(2)))), None)
+        if twin is None:
+            continue
+        twin["driver_ver_aliases"].append(ver)
+        for f in ("family_ids", "artefact_ids", "hwids"):
+            twin[f] |= g[f]
+        if g["first_published"] and (not twin["first_published"]
+                                     or g["first_published"] < twin["first_published"]):
+            twin["first_published"] = g["first_published"]
+        del groups[(key, ver)]
+
+
 def _infs(conn) -> list[dict]:
     """infs.json: one row per (INF file name, DriverVer). Windows reports the
     INSTALLED INF's DriverVer, which is often not the package version vendors
@@ -616,7 +708,8 @@ def _infs(conn) -> list[dict]:
         key = _inf_key(r["path"], sha)
         name = key if key.endswith(".inf") else None
         g = groups.setdefault((key, r["driver_ver"]), {
-            "inf_name": name, "driver_ver": r["driver_ver"],
+            "inf_name": name, "inf_series": _inf_series(name),
+            "driver_ver": r["driver_ver"], "driver_ver_aliases": [],
             # Windows shows DriverVer fields as numbers (10.079.0327.2025 is
             # 10.79.327.2025 in Device Manager): compare these, not the text
             "driver_ver_normalised": list(versions.parse(r["driver_ver"]).tuple or []),
@@ -633,6 +726,7 @@ def _infs(conn) -> list[dict]:
             d = a["release_date"]
             if d and (not g["first_published"] or d < g["first_published"]):
                 g["first_published"] = d
+    _fold_realtek_aliases(groups)
     out = []
     for g in groups.values():
         g["family_ids"] = sorted(g["family_ids"])
@@ -685,7 +779,8 @@ def _emit_by_board(conn, out, families, water, board_lag, bios_per_board,
             wt = versions.parse(w["version"]).tuple
             # the footnote only for a PARALLEL line (see _parallel)
             same_differs = bool(same and wt and wt[0] != maj
-                                and _parallel(same["span"], fl.get(wt[0], {}).get("span")))
+                                and _lines_parallel(fam["name"], maj, same["span"], wt[0],
+                                                    fl.get(wt[0], {}).get("span")))
             fams.append({
                 "family": fam["name"], "component": fam["component"],
                 "listed_version": e["listed_version"],

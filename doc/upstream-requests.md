@@ -219,3 +219,69 @@ Everything else (Realtek audio and LAN, MediaTek, Intel ME/DTT/ISH/Serial IO)
 is customised by the OEM and has no generic driver for end users. For those,
 `download_hint` is null; point users at the board's `support_url` from
 `boards.json` or `by-board`.
+
+# Second round (data 2.0.x)
+
+## Two DriverVer spellings for one build: folded
+
+Confirmed as one build. Dell ships `rt640x64.inf` both as
+`10.080.0407.2026` and as `10.080.50.0407`, and the `rt640x64.sys` inside
+both packages is byte-for-byte the same size with FileVersion
+`10.080.0407.2026`; only the INF stamp differs. Realtek's LAN INFs show this
+in 9 cases (`rt640x64`, `rtots640x64`, and the `rt25/26/27/68(d)cx21x64`
+NetAdapterCx INFs).
+
+`infs.json` now keeps one row per build, under the `X.Y.50.MMDD` spelling,
+with the other in `driver_ver_aliases`. Match an installed version against
+`driver_ver` or any alias.
+
+The fold applies only to Realtek's two patterns, with the same INF, date and
+`X.Y`. A general "same INF, same date" rule would be wrong: Intel stamps
+every chipset INF 1968-07-18 across genuinely different versions.
+
+## Same INF name, different numbering: MediaTek's year line now reachable
+
+The 25.x/26.x builds were in the index already, as Lenovo listings (willow's
+25.40.2.579 against Lenovo's newest 25.40.2.586). Lenovo is indexed from
+metadata only, so those rows had no INF evidence and stayed in the unsplit
+"MediaTek Wi-Fi" family, which `DEV_0616` doesn't resolve to.
+
+They are now routed by the chip their title names:
+- MT7920/21/22 and RZ6xx go to Wi-Fi 6E;
+- MT7925/27 and RZ7xx go to Wi-Fi 7;
+- Bluetooth is routed the same way.
+
+That moved 137 listings. For `DEV_0616`, MediaTek Wi-Fi 6E's `lines` now has
+a 25.x line (newest 25.40.2.586) marked `parallel_to_water`. willow's board
+page shows 25.40.2.586 as the same-line newest.
+
+The year numbering is a second scheme for the same drivers, and nothing
+ties a 25.x build to a 3.x one. So:
+- year-numbered builds never set these families' water level;
+- they are always a parallel line.
+
+A client on a year-numbered build should compare within its own line.
+
+`infs.json` still has no year-numbered `mtkwl6ex.inf` rows. Those need the
+payloads, which come from Lenovo or Windows Update. Neither is downloaded
+today, and WU's first result page for `DEV_0616` lists only 3.5.0.1392.
+Fetching them is the same crawler job as #9.
+
+## AMD 31.x vs 32.x: not parallel; per-device answer is in infs.json
+
+Right: 31.x was not parallel. It ended with 31.0.24028.1001 in June 2024,
+a week after 32.0.11002.41 appeared. It was flagged because line spans used
+every listing date, and a vendor re-listed a 31.x package in 2026. Spans now:
+- use each version's first appearance;
+- end at the newest version's first appearance;
+- count as parallel only after 90 days of overlap.
+
+Across all families, most spurious "parallel" flags are gone.
+
+For a Raphael iGPU (`PCI\VEN_1002&DEV_164E`), the per-device answer is the
+newest `infs.json` row binding that ID in the installed INF's series (AMD
+display INFs are renamed every release, so series is `u*.inf`). That row is
+**32.0.21043.5001** (2026-03-03), not the family water 32.0.31041.1004. AMD's
+newest 26.x-branch INFs (32.0.31xxx) don't list RDNA2 devices at all, so the
+family water overstates what such a device can install. No per-device flag
+is needed: `infs.json` answers it.

@@ -37,14 +37,21 @@ file means no indexed family claims that ID.
   listed: they match inbox Microsoft drivers too.
 - **Compare INF versions with INF versions.** Windows reports the installed
   INF's `DriverVer`, which is often not the package version vendors list
-  (a Realtek NIC's `rt640x64.inf` 10.79.x ships inside package 1125.x). Find
-  the installed INF's name in `infs.json` and compare `driver_ver_normalised`
-  against the newest row with the same `inf_name`. `infs.json` HWIDs carry
-  no SUBSYS/REV qualifiers; every device also reports that shorter form.
+  (a Realtek NIC's `rt640x64.inf` 10.79.x ships inside package 1125.x). In
+  `infs.json`, take the rows whose `hwids` include the device's ID and whose
+  `inf_series` matches the installed INF's, and compare
+  `driver_ver_normalised`. `inf_series` is the file name, except for AMD
+  display INFs, which are renamed every release (`u0403049.inf` →
+  `u*.inf`). Match the installed version against `driver_ver` and
+  `driver_ver_aliases`: Realtek stamps some builds two ways
+  (`10.080.50.0407` = `10.080.0407.2026`). `infs.json` HWIDs carry no
+  SUBSYS/REV qualifiers; every device also reports that shorter form.
 - **Compare listings on their own line.** When a family's versions run on
   parallel numbering lines (AMD 25.x packaging vs 32.x INF), `water-level.json`
   `lines` gives the newest per major version; `parallel_to_water` marks lines
-  that overlap the water's line in time. `families.json` `version_equiv`
+  that overlap the water's line in time (by first appearance of each
+  version, for at least 90 days; MediaTek's year-numbered 2x.x builds are
+  always parallel to its 1.x/3.x/5.x line). `families.json` `version_equiv`
   gives a family's translation rule into its canonical scheme (a regex with
   `$1`-style replacement, `flags` apart), e.g. NVIDIA `32.0.15.9186` = `591.86`.
 - **Match machines by SMBIOS**, where `boards.json` has `smbios` keys:

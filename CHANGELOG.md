@@ -50,6 +50,22 @@ Added:
   in the new `board.smbios` column.
 - `manifest.json`: size and sha256 of every aggregate file.
 
+### Data 2.0.x — second round of consumer feedback (unreleased)
+
+- `infs.json` rows gain `inf_series` (AMD's per-release display INF names
+  collapse to `u*.inf` / `amdwin-u*.inf`) and `driver_ver_aliases`: Realtek's
+  two stamps of one build (`10.080.0407.2026` / `10.080.50.0407`, identical
+  .sys) fold into one row.
+- Version-line spans use each version's first appearance and end at the
+  newest version's; lines are parallel only after 90 days of overlap. A
+  2026 re-listing no longer keeps AMD graphics 31.x (superseded by 32.x in
+  2024) "parallel".
+- MediaTek listings without INF evidence are routed to the Wi-Fi 6E / Wi-Fi 7
+  subfamilies by the chip their title names (MT7920/21/22, RZ6xx vs MT7925/27,
+  RZ7xx): 137 Lenovo rows, which brings Lenovo's year-numbered 25.x line to
+  the device's family. Year-numbered MediaTek builds never set those
+  families' water and are always a parallel line.
+
 ### Added (unreleased)
 
 - The landing page shows what the latest data refresh changed: water-level

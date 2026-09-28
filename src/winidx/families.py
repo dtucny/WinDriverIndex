@@ -245,6 +245,23 @@ SUBFAMILIES: list[tuple[str, str, str, set[str]]] = [
     # driver', so the suite's NN.YY majors get yanked back out by version
     ("Killer Suite", "intel", "lan", set()),
 ]
+# Silicon named in the listing text, for split parents' rows without INF
+# evidence. Lenovo (metadata only, never unpacked) numbers MediaTek builds on
+# year lines (25.40.x, 26.40.x) shared by both generations, so neither HWIDs
+# nor version majors can place them — but its titles name the chip ('MTK
+# RZ616 Bluetooth Driver', 'MT7921_RZ616_25.40.2.579'). All of MT7920/21/22
+# (RZ608/RZ616) run the Wi-Fi 6E driver (mtkwl6ex.inf); MT7925/27 (RZ717) the
+# Wi-Fi 7 one.
+_MTK_6E = r"mt792[012]|rz6\d\d"
+_MTK_7 = r"mt792[57]|rz7\d\d"
+SPLIT_TEXT: dict[str, list[tuple[str, str]]] = {
+    **{p: [("MediaTek Wi-Fi 6E", _MTK_6E), ("MediaTek Wi-Fi 7", _MTK_7)]
+       for p in ("MediaTek Wi-Fi", "AMD Wi-Fi")},
+    **{p: [("MediaTek Bluetooth (Wi-Fi 6E)", _MTK_6E),
+           ("MediaTek Bluetooth (Wi-Fi 7)", _MTK_7)]
+       for p in ("MediaTek Bluetooth", "AMD Bluetooth")},
+}
+
 SPLIT_VERSION_FALLBACK: dict[str, dict[int, str]] = {
     "MediaTek Wi-Fi": {5: "MediaTek Wi-Fi 7", 3: "MediaTek Wi-Fi 6E"},
     "AMD Wi-Fi": {5: "MediaTek Wi-Fi 7", 3: "MediaTek Wi-Fi 6E"},
@@ -467,14 +484,15 @@ def _apply_splits(conn, family_id, log) -> None:
     sub_fids = {name: family_id(name, sv, comp) for name, sv, comp, _ in SUBFAMILIES}
     by_version: dict[str, int] = {}
     undecided = []
-    n_anchored = 0
+    n_anchored = n_named = 0
     for parent in sorted(SPLIT_PARENTS):
         row = conn.execute("SELECT family_id FROM family WHERE name = ?",
                            (parent,)).fetchone()
         if not row:
             continue
         for a in conn.execute(
-                "SELECT artefact_id, version_normalised FROM artefact"
+                "SELECT artefact_id, version_normalised, vendor_artefact_id,"
+                " description_text, version_raw FROM artefact"
                 " WHERE family_id = ?", (row["family_id"],)).fetchall():
             hwids = _artefact_hwids(conn, a["artefact_id"])
             hits = [name for name, _, _, anchors in SUBFAMILIES
@@ -490,6 +508,17 @@ def _apply_splits(conn, family_id, log) -> None:
                 n_anchored += 1
                 if a["version_normalised"]:
                     by_version[a["version_normalised"]] = sub_fids[target]
+                continue
+            # no INF evidence: the listing may name the silicon. Not fed to
+            # by_version — year-line versions are shared across generations.
+            text = " ".join(filter(None, (a["vendor_artefact_id"], a["description_text"],
+                                          a["version_raw"]))).lower()
+            named = {sub for sub, pat in SPLIT_TEXT.get(parent, [])
+                     if re.search(pat, text)}
+            if len(named) == 1:
+                conn.execute("UPDATE artefact SET family_id = ? WHERE artefact_id = ?",
+                             (sub_fids[named.pop()], a["artefact_id"]))
+                n_named += 1
             else:
                 undecided.append((parent, a))
     moved = left = 0
@@ -512,7 +541,8 @@ def _apply_splits(conn, family_id, log) -> None:
             moved += 1
         else:
             left += 1
-    log(f"  splits: {n_anchored} anchored by HWID, {moved} adopted by version, "
+    log(f"  splits: {n_anchored} anchored by HWID, {n_named} named in the listing, "
+        f"{moved} adopted by version, "
         f"{left} left unsplit")
     conn.commit()
 
