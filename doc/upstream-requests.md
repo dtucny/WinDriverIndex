@@ -11,7 +11,7 @@ index.
 | 2 | Family HWID sets too broad | Fixed |
 | 3 | Junk HWIDs from INF string keys | Fixed |
 | 4 | Generic class-code IDs in family sets | Fixed |
-| 5 | JSON body for 404s | 404 caching fixed; JSON body needs a Worker |
+| 5 | JSON body for 404s | Fixed (Cloudflare Worker) |
 | 6 | INF-level versions | Added: `infs.json` |
 | 7 | Machine-readable scheme rules and lines | Added |
 | 8 | SMBIOS match keys on boards | Added for Dell, HP, Lenovo, MSI |
@@ -85,26 +85,31 @@ class code is just extra detail. Most of the 207 entries you counted were
 this kind. Only 18 family HWIDs were truly generic, including the
 `PCI\CC_010802` that caused the "AMD RAID" match on NVMe drives.
 
-## 5. JSON 404s: cache fixed; the HTML body stays for now
+## 5. JSON 404s: fixed (Cloudflare Worker)
 
-The 27 KB HTML page is Cloudflare's default 404 for the R2 custom domain, so
-there is nothing to change in this repo. Custom Error Rules and Error Pages,
-which could replace it, are paid-plan features, and the zone is on the Free
-plan. A small Worker on `/v1/*` could return a JSON body for 404s, but it
-isn't set up.
+The 27 KB HTML page was Cloudflare's default 404 for the R2 custom domain.
+Custom Error Rules are paid-plan only and the zone is on the Free plan, so a
+Worker on the route `windriverindex.tucny.com/v1/*` replaces 404 responses
+from R2 with:
 
-The cache side is fixed. The zone's Browser Cache TTL was 4 hours and
-overrode shorter origin values, so:
-- misses were cached in browsers for 4 hours, and
-- every `latest/` file was served with `max-age=14400` instead of the
-  5 minutes it is uploaded with.
+```
+HTTP/2 404
+content-type: application/json
+cache-control: public, max-age=300
+access-control-allow-origin: *
 
-With the setting at "Respect Existing Headers" (2026-09-28):
+{"error":"not_found"}
+```
+
+All other responses pass through unchanged. The Worker is not in this repo;
+it is managed in the Cloudflare dashboard.
+
+The zone's Browser Cache TTL was also wrong. At 4 hours it overrode shorter
+origin values, so misses were cached for 4 hours and every `latest/` file
+went out with `max-age=14400`. Since the setting changed to "Respect Existing
+Headers" (2026-09-28):
 - `latest/` files carry `max-age=300`;
-- dated snapshots carry `max-age=31536000, immutable`;
-- 404s carry no `cache-control`.
-
-Clients should treat any 404 status as "not indexed" and not parse the body.
+- dated snapshots carry `max-age=31536000, immutable`.
 
 ## 6. INF-level versions: added (`infs.json`)
 

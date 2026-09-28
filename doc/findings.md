@@ -487,5 +487,8 @@ doc/upstream-requests.md).
   Rules are paid-plan only). The zone's Browser Cache TTL (4 h) also
   overrode shorter origin values: 404s were cached 4 h and every latest/
   file went out as max-age=14400, not the uploaded 300. Set to "Respect
-  Existing Headers" on 2026-09-28; latest/ now serves max-age=300 and 404s
-  carry no cache-control.
+  Existing Headers" on 2026-09-28; latest/ now serves max-age=300. A
+  dashboard-managed Worker on windriverindex.tucny.com/v1/* now turns R2 404s
+  into `{"error":"not_found"}` (application/json, CORS, max-age=300); its
+  same-zone fetch() goes straight to R2. Free plan: 100k Worker
+  requests/day, and every /v1 request counts.
