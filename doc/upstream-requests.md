@@ -11,7 +11,7 @@ index.
 | 2 | Family HWID sets too broad | Fixed |
 | 3 | Junk HWIDs from INF string keys | Fixed |
 | 4 | Generic class-code IDs in family sets | Fixed |
-| 5 | JSON body for 404s | Needs a Cloudflare setting, not code |
+| 5 | JSON body for 404s | 404 caching fixed; JSON body needs a Worker |
 | 6 | INF-level versions | Added: `infs.json` |
 | 7 | Machine-readable scheme rules and lines | Added |
 | 8 | SMBIOS match keys on boards | Added for Dell, HP, Lenovo, MSI |
@@ -85,21 +85,26 @@ class code is just extra detail. Most of the 207 entries you counted were
 this kind. Only 18 family HWIDs were truly generic, including the
 `PCI\CC_010802` that caused the "AMD RAID" match on NVMe drives.
 
-## 5. JSON 404s: needs a Cloudflare setting
+## 5. JSON 404s: cache fixed; the HTML body stays for now
 
 The 27 KB HTML page is Cloudflare's default 404 for the R2 custom domain, so
-there is nothing to change in this repo. Two options:
+there is nothing to change in this repo. Custom Error Rules and Error Pages,
+which could replace it, are paid-plan features, and the zone is on the Free
+plan. A small Worker on `/v1/*` could return a JSON body for 404s, but it
+isn't set up.
 
-- a Cloudflare Custom Error Rule on `/v1/*` that returns a small
-  `application/json` body, or
-- a small Worker in front of `/v1/*`.
+The cache side is fixed. The zone's Browser Cache TTL was 4 hours and
+overrode shorter origin values, so:
+- misses were cached in browsers for 4 hours, and
+- every `latest/` file was served with `max-age=14400` instead of the
+  5 minutes it is uploaded with.
 
-That 404 is also served with `cache-control: max-age=14400`. A HWID lookup
-that misses can therefore stay cached as a 404 for up to 4 hours after a
-deploy adds the file. The error rule should set a shorter TTL.
+With the setting at "Respect Existing Headers" (2026-09-28):
+- `latest/` files carry `max-age=300`;
+- dated snapshots carry `max-age=31536000, immutable`;
+- 404s carry no `cache-control`.
 
-Until then, clients should treat any 404 status as "not indexed" and not
-parse the body.
+Clients should treat any 404 status as "not indexed" and not parse the body.
 
 ## 6. INF-level versions: added (`infs.json`)
 

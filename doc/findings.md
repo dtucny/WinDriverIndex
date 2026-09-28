@@ -483,6 +483,9 @@ doc/upstream-requests.md).
   type); MSI BIOS file names start with the board code (`7C96v1L9` =
   MS-7C96, in the baseboard product string). Several MSI boards share a code
   (MEG X570 ACE/UNIFY = MS-7C35).
-- Missing by-hwid files return Cloudflare's 27 KB HTML 404 with a 4 h
-  `max-age`: a newly added HWID can stay cached as a 404 for 4 h after a
-  deploy.
+- Missing by-hwid files return Cloudflare's 27 KB HTML 404 (Custom Error
+  Rules are paid-plan only). The zone's Browser Cache TTL (4 h) also
+  overrode shorter origin values: 404s were cached 4 h and every latest/
+  file went out as max-age=14400, not the uploaded 300. Set to "Respect
+  Existing Headers" on 2026-09-28; latest/ now serves max-age=300 and 404s
+  carry no cache-control.
