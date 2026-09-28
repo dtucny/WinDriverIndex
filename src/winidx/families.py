@@ -19,6 +19,9 @@ from __future__ import annotations
 import json
 import re
 import sqlite3
+from collections import defaultdict
+
+from .hwids import specific
 
 # (family name, silicon_vendor, component, [patterns])
 RULES: list[tuple[str, str, str, list[str]]] = [
@@ -456,7 +459,7 @@ def _artefact_hwids(conn, artefact_id) -> set[str]:
     for (blob,) in conn.execute(
             "SELECT i.hwids FROM inf i JOIN artefact a ON a.sha256 = i.payload_sha256"
             " WHERE a.artefact_id = ?", (artefact_id,)):
-        hwids.update(json.loads(blob))
+        hwids.update(specific(json.loads(blob)))
     return hwids
 
 
@@ -540,16 +543,101 @@ def _evidence_reassign(conn, log) -> None:
     conn.commit()
 
 
+# A shared INF counts toward a family only when it is part of that family's
+# own packages: carried by at least this fraction of the family's payloads,
+# relative to the family that carries it most consistently. A LAN INF riding
+# along in one combined LAN+WLAN package (1 of ~30 Wi-Fi payloads, vs most
+# payloads of each LAN family) must not make every Realtek NIC look like
+# Wi-Fi; the IPF INF in every IPF package stays IPF's even though chipset and
+# DTT bundles carry it more often in absolute terms.
+INF_RIDE_ALONG = 0.5
+
+
+def _inf_key(path: str, inf_sha256: str) -> str:
+    """INF identity across versions: the file name. MSI-packaged INFs extract
+    as nameless stream files, so those fall back to their content hash."""
+    name = re.split(r"[/\\!]", path)[-1].lower()
+    return name if name.endswith(".inf") else inf_sha256
+
+
+def _anchor_owner(hwid: str) -> str | None:
+    for name, _sv, _comp, anchors in SUBFAMILIES:
+        for a in anchors:
+            if hwid == a or hwid.startswith(a + "&"):
+                return name
+    return None
+
+
+def hwid_support(conn) -> dict[int, dict[str, float]]:
+    """family_id -> {hwid: share of the family's payloads carrying it}: which
+    HWIDs identify which family. Taking every HWID of every INF in a family's
+    payloads made combined packages leak — Realtek's LAN INFs bind 8168, 8125
+    and 8126 at once and ride along in Wi-Fi bundles, so 27% of HWIDs landed
+    in several families. Rules:
+
+    - a split anchor ('PCI\\VEN_10EC&DEV_8125') belongs to its subfamily
+      alone, whichever package carried it;
+    - otherwise an INF counts only for the families whose packages carry it
+      consistently (INF_RIDE_ALONG), not those it merely rides along with;
+    - '(preinstall)' variants pool with their full family, which owns the
+      HWIDs (it has the water level; the F6 variant never does).
+
+    Junk scan tokens and generic class-code IDs are dropped (hwids.specific).
+    """
+    names = {r[0]: r[1] for r in conn.execute("SELECT family_id, name FROM family")}
+    by_name = {n: f for f, n in names.items()}
+    canon = {f: by_name.get(n.removesuffix(" (preinstall)"), f)
+             for f, n in names.items()}
+    fams_of: dict[str, set[int]] = defaultdict(set)
+    for fid, sha in conn.execute(
+            "SELECT DISTINCT family_id, sha256 FROM artefact"
+            " WHERE family_id IS NOT NULL AND sha256 IS NOT NULL"
+            " AND kind = 'driver'"):
+        fams_of[sha].add(canon[fid])
+
+    carriers: dict[str, dict[int, set]] = defaultdict(lambda: defaultdict(set))
+    fam_payloads: dict[int, set] = defaultdict(set)
+    key_hwids: dict[tuple[int, str], set[str]] = defaultdict(set)
+    cleaned: dict[str, list[str]] = {}
+    for payload, path, inf_sha, blob in conn.execute(
+            "SELECT payload_sha256, path, inf_sha256, hwids FROM inf"
+            " WHERE hwids != '[]'"):
+        fids = fams_of.get(payload)
+        if not fids:
+            continue
+        if inf_sha not in cleaned:
+            cleaned[inf_sha] = specific(json.loads(blob))
+        if not cleaned[inf_sha]:
+            continue
+        key = _inf_key(path, inf_sha)
+        for fid in fids:
+            carriers[key][fid].add(payload)
+            fam_payloads[fid].add(payload)
+            key_hwids[(fid, key)].update(cleaned[inf_sha])
+
+    cand: dict[str, dict[int, tuple[float, bool]]] = defaultdict(dict)
+    for (fid, key), hs in key_hwids.items():
+        cover = {f: len(p) / len(fam_payloads[f]) for f, p in carriers[key].items()}
+        own = cover[fid] >= INF_RIDE_ALONG * max(cover.values())
+        for h in hs:
+            pc, po = cand[h].get(fid, (0.0, False))
+            cand[h][fid] = (max(cover[fid], pc), own or po)
+
+    support: dict[int, dict[str, float]] = defaultdict(dict)
+    for h, fams in cand.items():
+        owner = _anchor_owner(h)
+        keep = [f for f in fams if names[f] == owner] if owner else []
+        keep = keep or [f for f, (_c, o) in fams.items() if o] or list(fams)
+        for f in keep:
+            support[f][h] = round(fams[f][0], 3)
+    return support
+
+
 def _populate_hwids(conn) -> None:
-    for row in conn.execute("SELECT family_id FROM family"):
-        fid = row["family_id"]
-        hwids: set[str] = set()
-        for (blob,) in conn.execute(
-                "SELECT i.hwids FROM inf i JOIN artefact a ON a.sha256 = i.payload_sha256"
-                " WHERE a.family_id = ?", (fid,)):
-            hwids.update(json.loads(blob))
+    support = hwid_support(conn)
+    for (fid,) in conn.execute("SELECT family_id FROM family").fetchall():
         conn.execute("UPDATE family SET hwids = ? WHERE family_id = ?",
-                     (json.dumps(sorted(hwids)), fid))
+                     (json.dumps(sorted(support.get(fid, ()))), fid))
     conn.commit()
 
 

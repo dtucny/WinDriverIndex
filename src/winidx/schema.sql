@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS board (
     release_date       TEXT,
     support_url        TEXT,
     product_type       TEXT NOT NULL DEFAULT 'motherboard',
+    smbios             TEXT,            -- JSON {key: [values]}, see publish._smbios
     first_seen         TEXT NOT NULL,
     last_seen          TEXT NOT NULL,
     UNIQUE (vendor, vendor_product_id)

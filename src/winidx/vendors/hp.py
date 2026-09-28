@@ -97,6 +97,8 @@ def crawl(conn: sqlite3.Connection, client, run_date: str,
                 name=name, slug=slug, product_type=ptype,
                 support_url="https://support.hp.com/us-en/search?q="
                             + name.replace(" ", "+")))
+            # HP's platform SystemID is the SMBIOS baseboard product
+            db.merge_board_smbios(conn, board_ids[-1], "baseboard_product", [sid])
             n_boards += 1
 
         for block in _UPDATE.findall(xml):

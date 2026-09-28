@@ -23,6 +23,7 @@ from pathlib import Path
 
 from . import config
 from .fetch import payload_path
+from .hwids import is_hwid
 
 SEVENZIP = shutil.which("7zz") or shutil.which("7z") or "7zz"
 NESTED_EXTS = {".zip", ".cab", ".exe", ".msi", ".7z"}
@@ -172,7 +173,8 @@ def _parse_inf(data: bytes) -> dict:
         m, d, y = int(ver.group(1)), int(ver.group(2)), int(ver.group(3))
         driver_date = f"{y:04d}-{m:02d}-{d:02d}"
         driver_ver = ver.group(4)
-    hwids = sorted({h.upper() for h in _HWID.findall(text)})
+    # the scan also meets [Strings] keys and registry paths; keep real IDs
+    hwids = sorted({h.upper() for h in _HWID.findall(text) if is_hwid(h)})
     prov = _PROVIDER.search(text)
     cls = _CLASS.search(text)
     return {

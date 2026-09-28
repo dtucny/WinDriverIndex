@@ -213,6 +213,7 @@ def crawl(conn: sqlite3.Connection, client, run_date: str,
             conn, run_date, vendor=VENDOR, vendor_product_id=mt,
             name=display, slug=mt, product_type=ptype,
             support_url=f"https://pcsupport.lenovo.com/products/{mt}")
+        db.merge_board_smbios(conn, board_id, "system_product_prefix", [mt])
         n_boards += 1
         li, ln = _crawl_mt(conn, client, run_date, board_id, mt, display, log)
         n_listings += li + enrich(board_id, mt)
@@ -226,6 +227,9 @@ def crawl(conn: sqlite3.Connection, client, run_date: str,
             conn, run_date, vendor=VENDOR, vendor_product_id=mt,
             name=display, slug=mt, product_type=_product_type(name),
             support_url=f"https://pcsupport.lenovo.com/products/{mt}")
+        # every sibling machine type: the SMBIOS product name (MTM, e.g.
+        # 21K9CTO1WW) starts with one of them
+        db.merge_board_smbios(conn, board_id, "system_product_prefix", types)
         n_boards += 1
         if bios_m:
             ver, date, crc, url = bios_m.groups()

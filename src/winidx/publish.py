@@ -17,9 +17,12 @@ import re
 import sqlite3
 from collections import defaultdict
 
-from . import bios, config, versions
+from . import bios, config, hwids, versions
+from .families import _inf_key, hwid_support
 
-SCHEMA_VERSION = "1.0.0"
+# 2.0.0: by-hwid lists every matching family and drops known_versions (now in
+# by-family/); artefacts.json version_normalised is an array, not a string.
+SCHEMA_VERSION = "2.0.0"
 # Every published file carries its data license (LICENSE-DATA at repo root).
 LICENSE = "CC-BY-4.0"
 CAVEAT = ("Water level means the newest version any vendor has published, "
@@ -30,7 +33,7 @@ CAVEAT = ("Water level means the newest version any vendor has published, "
 def run(conn: sqlite3.Connection, *, log=print) -> dict:
     generated = dt.datetime.now(dt.UTC).isoformat(timespec="seconds")
     out = config.PUBLIC_DIR / "v1"
-    (out / "by-hwid").mkdir(parents=True, exist_ok=True)
+    out.mkdir(parents=True, exist_ok=True)
 
     def emit(name: str, payload) -> None:
         (out / name).write_text(json.dumps(
@@ -48,13 +51,21 @@ def run(conn: sqlite3.Connection, *, log=print) -> dict:
         " version_raw, version_normalised, release_date, file_size, url,"
         " sha256, md5, os_raw, is_beta, first_seen, last_seen"
         " FROM artefact WHERE kind = 'driver'")]
+    for a in artefacts:   # stored as JSON text; publish the array itself
+        a["version_normalised"] = json.loads(a["version_normalised"] or "null")
 
     boards = [dict(r) for r in conn.execute(
         "SELECT board_id, vendor, vendor_product_id, name, slug, revision,"
         " chipset, socket, product_type, release_date, support_url FROM board")]
+    smbios = _smbios(conn)
+    for b in boards:
+        b["smbios"] = smbios.get(b["board_id"])
 
     effective = _effective_versions(conn)
     water = _water_level(conn, families, effective)
+    lines = _lines(conn, families, effective)
+    for w in water:
+        w["lines"] = _water_lines(w, lines.get(w["family_id"], {}))
     board_lag, vendor_lag = _lag(conn, families, water, effective)
 
     # diff against the previous published state BEFORE overwriting it, so
@@ -68,48 +79,82 @@ def run(conn: sqlite3.Connection, *, log=print) -> dict:
     dash = _dashboard(conn, families, water, board_lag, effective, bios_data)
     dash["changes"] = changes
     emit("dashboard.json", dash)
+    for f in families.values():
+        f["version_equiv"] = SCHEME_EQUIV.get(f["name"])
+        f["download_hint"] = DOWNLOAD_HINTS.get(f["name"])
     emit("families.json", list(families.values()))
     emit("artefacts.json", artefacts)
     emit("boards.json", boards)
     emit("water-level.json", water)
     emit("vendor-lag.json", vendor_lag)
+    infs = _infs(conn)
+    emit("infs.json", infs)
 
     n_hwid = _emit_by_hwid(conn, out, families, water, generated)
+    n_fam = _emit_by_family(conn, out, families, water, generated)
     n_bb = _emit_by_board(conn, out, families, water, board_lag, bios_per_board,
-                          effective, generated)
+                          lines, generated)
+    emit("manifest.json", _manifest(out, {"by-hwid": n_hwid, "by-family": n_fam,
+                                          "by-board": n_bb}))
 
     log(f"publish: {len(families)} families, {len(artefacts)} artefacts, "
-        f"{len(boards)} boards, {n_hwid} hwid files, {n_bb} board files -> {out}")
+        f"{len(boards)} boards, {len(infs)} INF versions, {n_hwid} hwid files, "
+        f"{n_bb} board files -> {out}")
     return {"families": len(families), "artefacts": len(artefacts),
             "boards": len(boards), "hwids": n_hwid, "failed": 0}
 
 
-# NVIDIA stamps Windows packages with the INF DriverVer (3x.0.1D.DDDD) while
-# NVIDIA itself — and ASUS, and the family water level — speak the marketing
-# scheme (591.86 = ...15.9186: last digit of the third field + the fourth).
-# Translating INF-scheme listings puts the whole family on one comparable
-# line. Intel's 32.0.101.xxxx has a three-digit third field and never matches.
-_NV_INF = re.compile(r"3\d\.0\.1(\d)\.(\d{4})\s*$")
+# Per-family listing→canonical-scheme rules: applied for ordering, surfaced as
+# listed_equiv on board pages, and published in families.json so clients
+# apply the very same translation. Templates use $n group references (JS and
+# .NET syntax) so a client can pass them to its regex replace verbatim;
+# 'flags' holds any regex flags ('i') apart from the pattern.
+SCHEME_EQUIV = {
+    # NVIDIA stamps Windows packages with the INF DriverVer (3x.0.1D.DDDD)
+    # while NVIDIA itself — and ASUS, and the family water level — speak the
+    # marketing scheme (591.86 = ...15.9186: last digit of the third field +
+    # the fourth). Intel's 32.0.101.xxxx has a three-digit third field and
+    # never matches.
+    "NVIDIA Graphics": {
+        "pattern": r"^3\d\.0\.1(\d)\.(\d{2})(\d{2})$", "replace": "$1$2.$3",
+        "flags": "",
+        "note": "INF DriverVer to NVIDIA marketing version: 32.0.15.9186 = 591.86"},
+    # ASRock writes Realtek UAD audio versions as the bare build ('10007.1_UAD_
+    # WHQL'); the canonical form every other vendor lists is 6.0.<build>.<rev>.
+    "Realtek Audio": {
+        "pattern": r"^(\d{4,5})\.(\d+)[_ ]?UAD", "replace": "6.0.$1.$2",
+        "flags": "i",
+        "note": "ASRock bare UAD build to the 6.0.x.y form: 10007.1_UAD = 6.0.10007.1"},
+}
 
 
-def _nv_marketing(raw: str | None) -> str | None:
-    m = _NV_INF.fullmatch((raw or "").strip())
-    return f"{m.group(1)}{m.group(2)[:2]}.{m.group(2)[2:]}" if m else None
+def _equiv(family: str, raw: str | None) -> str | None:
+    """A listing's version in its family's canonical scheme, if a rule applies."""
+    rule = SCHEME_EQUIV.get(family)
+    if not rule:
+        return None
+    m = re.search(rule["pattern"], (raw or "").strip(),
+                  re.I if "i" in rule["flags"] else 0)
+    return re.sub(r"\$(\d)", lambda g: m.group(int(g.group(1))),
+                  rule["replace"]) if m else None
 
 
-# ASRock writes Realtek UAD audio versions as the bare build ('10007.1_UAD_
-# WHQL'); the canonical form every other vendor lists is 6.0.<build>.<rev>.
-_RTK_UAD = re.compile(r"(\d{4,5})\.(\d+)[_ ]?UAD", re.I)
-
-
-def _rtk_uad(raw: str | None) -> str | None:
-    m = _RTK_UAD.match((raw or "").strip())
-    return f"6.0.{m.group(1)}.{m.group(2)}" if m else None
-
-
-# per-family listing→canonical-scheme translators: applied for ordering, and
-# surfaced as listed_equiv so the board view shows the comparable form
-SCHEME_EQUIV = {"NVIDIA Graphics": _nv_marketing, "Realtek Audio": _rtk_uad}
+# Where a user gets a family's driver when their machine vendor lags behind:
+# only families whose silicon vendor ships generic drivers to end users.
+# Everything else is OEM-customised — use the board's support_url.
+_AMD = {"label": "AMD Software: Adrenalin Edition (auto-detect) or AMD drivers page",
+        "url": "https://www.amd.com/en/support/download/drivers.html"}
+_INTEL = {"label": "Intel Driver & Support Assistant",
+          "url": "https://www.intel.com/content/www/us/en/support/detect.html"}
+DOWNLOAD_HINTS = {
+    "NVIDIA Graphics": {"label": "NVIDIA App or NVIDIA driver search",
+                        "url": "https://www.nvidia.com/en-us/drivers/"},
+    "AMD Graphics": _AMD, "AMD Chipset": _AMD, "AMD RAID": _AMD,
+    **{name: _INTEL for name in (
+        "Intel VGA", "Intel Wi-Fi", "Intel Bluetooth", "Intel LAN",
+        "Intel I211 LAN", "Intel I219 LAN", "Intel I225/I226 LAN",
+        "Intel Chipset INF", "Intel RST", "Killer Wi-Fi", "Killer Bluetooth")},
+}
 
 
 def _changes(out, water, boards, generated) -> dict | None:
@@ -179,8 +224,7 @@ def _effective_versions(conn) -> dict[int, versions.ParsedVersion]:
             " WHERE a.kind = 'driver'"):
         listing = versions.parse(r["version_raw"])
         eff[r["artefact_id"]] = listing
-        conv = SCHEME_EQUIV.get(r["fname"])
-        if conv and (mk := conv(r["version_raw"])):
+        if mk := _equiv(r["fname"], r["version_raw"]):
             eff[r["artefact_id"]] = versions.parse(mk)
             continue   # canonical scheme reached — no INF pass
         if not r["sha256"] or not listing.tuple:
@@ -364,9 +408,7 @@ def _lag(conn, families, water, effective) -> tuple[list[dict], list[dict]]:
                  "listed_version": r["version_raw"],
                  # exception: the NVIDIA INF→marketing translation IS shown,
                  # since the water speaks marketing (32.0.15.9186 = 591.86)
-                 "listed_equiv": (conv(r["version_raw"]) if (conv :=
-                                  SCHEME_EQUIV.get(families[fid]["name"]))
-                                  else None),
+                 "listed_equiv": _equiv(families[fid]["name"], r["version_raw"]),
                  "effective_major": (effective[r["artefact_id"]].tuple or (None,))[0],
                  "listed_date": r["listed_date"], "lag_days": lag}
         board_lag.append(entry)
@@ -391,28 +433,230 @@ def _lag(conn, families, water, effective) -> tuple[list[dict], list[dict]]:
     return board_lag, vendor_lag
 
 
+def _lines(conn, families, effective) -> dict[int, dict[int, dict]]:
+    """Newest version and publication span per (family, major-version line).
+    Vendors number the same driver in incompatible schemes, so a listing's
+    honest comparison target is the newest version ON ITS OWN LINE; the
+    cross-scheme family water stays as context (lag is date-derived and
+    unaffected)."""
+    lines: dict[int, dict[int, dict]] = defaultdict(dict)
+    for r in conn.execute(
+            "SELECT artefact_id, family_id, version_raw, release_date"
+            " FROM artefact WHERE kind='driver' AND is_beta=0"
+            " AND family_id IS NOT NULL"):
+        e = effective[r["artefact_id"]]
+        if not e.tuple:
+            continue
+        raw = r["version_raw"] or ""
+        if "/" in raw and len(re.findall(r"\d+(?:\.\d+){2,}", raw)) >= 2:
+            continue   # slash-combos: one arbitrary member's tuple, skip
+        ln = lines[r["family_id"]].setdefault(
+            e.tuple[0], {"top": None, "date": None, "disp": None, "span": None})
+        if d := r["release_date"]:
+            sp = ln["span"] = ln["span"] or [d, d]
+            sp[0], sp[1] = min(sp[0], d), max(sp[1], d)
+        if ln["top"] is None or versions.compare_key(e) > versions.compare_key(ln["top"]):
+            ln.update(top=e, date=r["release_date"],
+                      disp=_equiv(families[r["family_id"]]["name"], raw) or raw)
+    return lines
+
+
+def _parallel(a, b) -> bool:
+    """Two version lines are PARALLEL when they were published
+    contemporaneously (AMD's 25.x packaging vs 32.x INF overlap for years). A
+    line that simply ENDED before the other began — Intel Bluetooth 21.x vs
+    24.x, any old NVIDIA branch — is one scheme marching on, and comparing
+    across them is fine. Unknown spans count as parallel."""
+    return not (a and b and (a[1] < b[0] or b[1] < a[0]))
+
+
+def _water_lines(w, fam_lines) -> list[dict]:
+    """water-level.json 'lines': every major-version line of the family, so a
+    client can compare an installed version against the newest on its OWN
+    line when that line runs parallel to the water's."""
+    wmaj = w["version_normalised"][0]
+    wspan = fam_lines.get(wmaj, {}).get("span")
+    out = []
+    for major, ln in fam_lines.items():
+        sp = ln["span"] or [None, None]
+        out.append({"major": major, "newest": ln["disp"],
+                    "newest_normalised": list(ln["top"].tuple),
+                    "newest_date": ln["date"], "first_date": sp[0],
+                    "last_date": sp[1], "water_line": major == wmaj,
+                    "parallel_to_water": (major != wmaj
+                                          and _parallel(ln["span"], wspan))})
+    return sorted(out, key=lambda x: (x["last_date"] or "", x["major"]), reverse=True)
+
+
+# MSI BIOS files are named <board code>v<rev> ('7C96v1L9' = MS-7C96); that
+# code is in the SMBIOS baseboard product ('MAG B650 TOMAHAWK WIFI (MS-7D75)')
+_MSI_CODE = re.compile(r"(7[0-9A-F]{3})v[0-9A-Z]", re.I)
+
+
+def _smbios(conn) -> dict[int, dict[str, list[str]]]:
+    """Deterministic machine-matching keys per board, where the vendor exposes
+    one (boards.json 'smbios'; README lists the keys and match rules):
+
+    system_sku                  Dell systemID = SMBIOS SKU Number, exact
+    baseboard_product           HP platform ID = SMBIOS baseboard product, exact
+    system_product_prefix       Lenovo machine types: SMBIOS product name
+                                (MTM, '21K9CTO1WW') starts with one
+    baseboard_product_contains  MSI board code ('MS-7D75'), a substring of the
+                                SMBIOS baseboard product; several boards can
+                                share one code (MEG X570 ACE/UNIFY = MS-7C35)
+
+    Crawlers record what they parse in board.smbios; HP and Lenovo keys are
+    also recoverable from vendor_product_id, and MSI's from BIOS listings."""
+    out: dict[int, dict[str, set]] = defaultdict(lambda: defaultdict(set))
+    for r in conn.execute("SELECT board_id, vendor, vendor_product_id, smbios,"
+                          " product_type FROM board"):
+        for k, vs in json.loads(r["smbios"] or "{}").items():
+            out[r["board_id"]][k].update(vs)
+        if r["vendor"] == "hp":
+            out[r["board_id"]]["baseboard_product"].add(
+                r["vendor_product_id"].split("/")[0].upper())
+        elif r["vendor"] == "lenovo":
+            out[r["board_id"]]["system_product_prefix"].add(r["vendor_product_id"].upper())
+    for bid, ver in conn.execute("""
+            SELECT b.board_id, a.version_raw FROM board b
+            JOIN board_artefact ba ON ba.board_id = b.board_id
+            JOIN artefact a ON a.artefact_id = ba.artefact_id
+            WHERE b.vendor = 'msi' AND b.product_type = 'motherboard'
+              AND a.kind = 'bios'"""):
+        if m := _MSI_CODE.match(ver or ""):
+            out[bid]["baseboard_product_contains"].add("MS-" + m.group(1).upper())
+    return {bid: {k: sorted(v) for k, v in d.items() if v} for bid, d in out.items()}
+
+
+def _hwid_filename(hwid: str) -> str:
+    return hwid.replace("\\", "_").replace("&", "+") + ".json"
+
+
 def _emit_by_hwid(conn, out, families, water, generated) -> int:
-    level = {w["family_id"]: w for w in water}
-    n = 0
+    """One file per HWID listing EVERY family it identifies (a shared HWID —
+    Intel Wi-Fi vs Killer, one Realtek INF binding three NIC generations —
+    used to hold only the last family written). Ordered by match_share: the
+    fraction of that family's packages whose INFs carry the HWID. The full
+    version history lives once per family in by-family/, not in each of the
+    ~60k HWID files (which made this directory 9 GB)."""
+    import shutil
+    shutil.rmtree(out / "by-hwid", ignore_errors=True)   # drop stale HWIDs
+    (out / "by-hwid").mkdir(parents=True, exist_ok=True)
+    # lines stay in water-level.json / by-family: repeated in every HWID
+    # file they were most of this directory's size
+    level = {w["family_id"]: {k: v for k, v in w.items() if k != "lines"}
+             for w in water}
+    support = hwid_support(conn)
+    per: dict[str, list] = defaultdict(list)
     for fid, fam in families.items():
-        w = level.get(fid)
+        for h in fam["hwids"]:
+            per[h].append((support.get(fid, {}).get(h, 0.0), fam["name"], fid))
+    for h, fams in per.items():
+        fams.sort(key=lambda x: (-x[0], x[1]))
+        entries = [{"family_id": fid, "family": name, "match_share": share,
+                    "water_level": level.get(fid)} for share, name, fid in fams]
+        (out / "by-hwid" / _hwid_filename(h)).write_text(json.dumps(
+            {"schema_version": SCHEMA_VERSION, "license": LICENSE,
+             "generated": generated, "hwid": h,
+             "family": entries[0]["family"], "families": entries},
+            indent=1, ensure_ascii=False) + "\n")
+    return len(per)
+
+
+def _emit_by_family(conn, out, families, water, generated) -> int:
+    """by-family/{family_id}.json: the family, its water level (with lines)
+    and every version any source has listed for it."""
+    import shutil
+    shutil.rmtree(out / "by-family", ignore_errors=True)
+    (out / "by-family").mkdir(parents=True, exist_ok=True)
+    level = {w["family_id"]: w for w in water}
+    for fid, fam in families.items():
         known = [dict(r) for r in conn.execute(
             "SELECT DISTINCT version_raw, release_date, vendor, url FROM artefact"
             " WHERE family_id = ? AND kind = 'driver' ORDER BY release_date DESC",
             (fid,))]
-        for hwid in fam["hwids"]:
-            safe = hwid.replace("\\", "_").replace("&", "+")
-            (out / "by-hwid" / f"{safe}.json").write_text(json.dumps(
-                {"schema_version": SCHEMA_VERSION, "license": LICENSE,
-                 "generated": generated, "hwid": hwid, "family": fam["name"],
-                 "water_level": w, "known_versions": known},
-                indent=1, ensure_ascii=False) + "\n")
-            n += 1
-    return n
+        (out / "by-family" / f"{fid}.json").write_text(json.dumps(
+            {"schema_version": SCHEMA_VERSION, "license": LICENSE,
+             "generated": generated, "caveat": CAVEAT,
+             "family": {k: v for k, v in fam.items() if k != "hwids"},
+             "hwid_count": len(fam["hwids"]),
+             "water_level": level.get(fid), "known_versions": known},
+            indent=1, ensure_ascii=False) + "\n")
+    return len(families)
+
+
+def _infs(conn) -> list[dict]:
+    """infs.json: one row per (INF file name, DriverVer). Windows reports the
+    INSTALLED INF's DriverVer, which is often not the package version vendors
+    list (Realtek NIC 10.79.50.1003 inside package 1125.x; NVIDIA's INF vs
+    marketing scheme), so a client comparing installed against newest should
+    compare INF versions of the same INF file. HWIDs are published without
+    SUBSYS/REV qualifiers (hwids.base): every device also reports that less
+    specific ID, and it keeps the file ~100x smaller than the raw lists."""
+    arts: dict[str, list] = defaultdict(list)
+    for r in conn.execute(
+            "SELECT artefact_id, family_id, sha256, release_date FROM artefact"
+            " WHERE kind = 'driver' AND sha256 IS NOT NULL"):
+        arts[r["sha256"]].append(r)
+    groups: dict[tuple, dict] = {}
+    cleaned: dict[str, list[str]] = {}
+    for r in conn.execute(
+            "SELECT payload_sha256, path, inf_sha256, class, driver_date,"
+            " driver_ver, hwids FROM inf"
+            " WHERE hwids != '[]' AND driver_ver IS NOT NULL"):
+        rows = arts.get(r["payload_sha256"])
+        if not rows:
+            continue
+        sha = r["inf_sha256"]
+        if sha not in cleaned:
+            cleaned[sha] = sorted({hwids.base(h)
+                                   for h in hwids.specific(json.loads(r["hwids"]))})
+        if not cleaned[sha]:
+            continue
+        key = _inf_key(r["path"], sha)
+        name = key if key.endswith(".inf") else None
+        g = groups.setdefault((key, r["driver_ver"]), {
+            "inf_name": name, "driver_ver": r["driver_ver"],
+            # Windows shows DriverVer fields as numbers (10.079.0327.2025 is
+            # 10.79.327.2025 in Device Manager): compare these, not the text
+            "driver_ver_normalised": list(versions.parse(r["driver_ver"]).tuple or []),
+            "driver_date": r["driver_date"], "class": r["class"],
+            "family_ids": set(), "artefact_ids": set(), "hwids": set(),
+            "first_published": None})
+        g["hwids"].update(cleaned[sha])
+        if r["driver_date"] and (not g["driver_date"] or r["driver_date"] < g["driver_date"]):
+            g["driver_date"] = r["driver_date"]
+        for a in rows:
+            g["artefact_ids"].add(a["artefact_id"])
+            if a["family_id"] is not None:
+                g["family_ids"].add(a["family_id"])
+            d = a["release_date"]
+            if d and (not g["first_published"] or d < g["first_published"]):
+                g["first_published"] = d
+    out = []
+    for g in groups.values():
+        g["family_ids"] = sorted(g["family_ids"])
+        g["artefact_ids"] = sorted(g["artefact_ids"])
+        g["hwids"] = sorted(g["hwids"])
+        out.append(g)
+    return sorted(out, key=lambda g: (g["inf_name"] or "~", g["driver_ver"]))
+
+
+def _manifest(out, dir_counts) -> dict:
+    """Size and sha256 of every aggregate file, so a client revalidates this
+    one small file and re-downloads only what changed."""
+    import hashlib
+    files = {}
+    for p in sorted(out.glob("*.json")):
+        if p.name == "manifest.json":
+            continue
+        data = p.read_bytes()
+        files[p.name] = {"bytes": len(data), "sha256": hashlib.sha256(data).hexdigest()}
+    return {"files": files, "directories": dir_counts}
 
 
 def _emit_by_board(conn, out, families, water, board_lag, bios_per_board,
-                   effective, generated) -> int:
+                   lines, generated) -> int:
     """One JSON per board for the picker page — mirrors the by-hwid pattern."""
     import shutil as _sh
     _sh.rmtree(out / "by-board", ignore_errors=True)   # drop stale boards
@@ -422,33 +666,6 @@ def _emit_by_board(conn, out, families, water, board_lag, bios_per_board,
         "SELECT board_id, vendor, name, slug, chipset, socket, product_type,"
         " support_url FROM board")}
     water_by_name = {families[w["family_id"]]["name"]: w for w in water}
-    # newest per (family, major-version-line): vendors number the same driver
-    # in incompatible schemes, so a listing's honest comparison target is the
-    # newest version ON ITS OWN LINE; the cross-scheme family water stays as
-    # context (lag is date-derived and unaffected).
-    line_top: dict = {}
-    line_span: dict = {}   # (family, major) -> [first, last] release date
-    import re as _re
-    for r in conn.execute(
-            "SELECT artefact_id, family_id, version_raw, release_date"
-            " FROM artefact WHERE kind='driver' AND is_beta=0"
-            " AND family_id IS NOT NULL"):
-        e = effective[r["artefact_id"]]
-        if not e.tuple:
-            continue
-        raw = r["version_raw"] or ""
-        if "/" in raw and len(_re.findall(r"\d+(?:\.\d+){2,}", raw)) >= 2:
-            continue   # slash-combos: one arbitrary member's tuple, skip
-        k = (r["family_id"], e.tuple[0])
-        if r["release_date"]:
-            s = line_span.setdefault(k, [r["release_date"], r["release_date"]])
-            s[0] = min(s[0], r["release_date"])
-            s[1] = max(s[1], r["release_date"])
-        cur = line_top.get(k)
-        if cur is None or versions.compare_key(e) > versions.compare_key(cur[0]):
-            conv = SCHEME_EQUIV.get(families[r["family_id"]]["name"])
-            disp = conv(raw) if conv else None
-            line_top[k] = (e, r["release_date"], disp or r["version_raw"])
     from collections import defaultdict as _dd
     per: dict[int, list] = _dd(list)
     for e in board_lag:
@@ -463,20 +680,12 @@ def _emit_by_board(conn, out, families, water, board_lag, bios_per_board,
             fam = families[e["family_id"]]
             w = level[e["family_id"]]
             maj = e["effective_major"]
-            same = line_top.get((e["family_id"], maj)) if maj is not None else None
+            fl = lines.get(e["family_id"], {})
+            same = fl.get(maj) if maj is not None else None
             wt = versions.parse(w["version"]).tuple
-            same_differs = bool(same and wt and wt[0] != maj)
-            if same_differs:
-                # a major bump is only a PARALLEL line when the two lines
-                # were published contemporaneously (AMD's 25.x packaging vs
-                # 32.x INF overlap for years). A line that simply ENDED
-                # before the water's line began — Intel Bluetooth 21.x vs
-                # 24.x, any old NVIDIA branch — is one scheme marching on,
-                # and the footnote would misread as incomparability.
-                sl, sw = (line_span.get((e["family_id"], maj)),
-                          line_span.get((e["family_id"], wt[0])))
-                if sl and sw and (sl[1] < sw[0] or sw[1] < sl[0]):
-                    same_differs = False
+            # the footnote only for a PARALLEL line (see _parallel)
+            same_differs = bool(same and wt and wt[0] != maj
+                                and _parallel(same["span"], fl.get(wt[0], {}).get("span")))
             fams.append({
                 "family": fam["name"], "component": fam["component"],
                 "listed_version": e["listed_version"],
@@ -486,8 +695,8 @@ def _emit_by_board(conn, out, families, water, board_lag, bios_per_board,
                 "water_first_published": w["first_published"],
                 # newest on the listing's own numbering line, when the family
                 # water lives on a different (incomparable) line
-                "same_line_newest": (same[2] if same_differs else None),
-                "same_line_date": (same[1] if same_differs else None),
+                "same_line_newest": (same["disp"] if same_differs else None),
+                "same_line_date": (same["date"] if same_differs else None),
                 "upstream_only": w["upstream_only"],
                 "lag_days": e["lag_days"],
             })

@@ -211,6 +211,13 @@ def _ingest(conn: sqlite3.Connection, client, run_date: str, text: str,
                                 f"/product-support/product/{disp.lower()}/drivers")
                 n_boards += 1
             sys_to_board[sid] = boards_by_name[name]
+    # Dell's systemID is the SMBIOS SKU Number (Win32_ComputerSystem.
+    # SystemSKUNumber) — the deterministic key for matching a machine
+    by_board: dict[int, list[str]] = {}
+    for sid, bid in sys_to_board.items():
+        by_board.setdefault(bid, []).append(sid)
+    for bid, sids in by_board.items():
+        db.merge_board_smbios(conn, bid, "system_sku", sids)
     log(f"dell: {len(boards_by_name)} systems ({len(sys_to_board)} systemIDs)")
 
     comps = _COMPONENT.findall(text)

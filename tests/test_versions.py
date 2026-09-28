@@ -39,18 +39,20 @@ def test_unparseable_sorts_lowest():
 
 
 def test_nvidia_inf_to_marketing():
-    from winidx.publish import _nv_marketing
-    assert _nv_marketing("32.0.15.9186") == "591.86"
-    assert _nv_marketing("31.0.15.3623") == "536.23"
-    assert _nv_marketing("32.0.16.1074") == "610.74"
-    assert _nv_marketing("616.56") is None          # already marketing
-    assert _nv_marketing("32.0.101.8991") is None   # Intel scheme
-    assert _nv_marketing(None) is None
+    from winidx.publish import _equiv
+    nv = lambda v: _equiv("NVIDIA Graphics", v)
+    assert nv("32.0.15.9186") == "591.86"
+    assert nv("31.0.15.3623") == "536.23"
+    assert nv("32.0.16.1074") == "610.74"
+    assert nv("616.56") is None          # already marketing
+    assert nv("32.0.101.8991") is None   # Intel scheme
+    assert nv(None) is None
 
 
 def test_realtek_uad_to_canonical():
-    from winidx.publish import _rtk_uad
-    assert _rtk_uad("10007.1_UAD_WHQL") == "6.0.10007.1"
-    assert _rtk_uad("9679.1 UAD") == "6.0.9679.1"
-    assert _rtk_uad("6.0.9679.1") is None
-    assert _rtk_uad(None) is None
+    from winidx.publish import _equiv
+    rtk = lambda v: _equiv("Realtek Audio", v)
+    assert rtk("10007.1_UAD_WHQL") == "6.0.10007.1"
+    assert rtk("9679.1 UAD") == "6.0.9679.1"
+    assert rtk("6.0.9679.1") is None
+    assert rtk(None) is None

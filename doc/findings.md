@@ -453,3 +453,36 @@ A 4 GB box works; 8 GB avoids swapping while page cache is hot.
   two platform ids; both are indexed as separate machines (5478, 5480).
 - Every published file now carries `"license": "CC-BY-4.0"` beside
   `schema_version` (repo: MIT code, CC BY 4.0 data — LICENSE, LICENSE-DATA).
+
+## 2026-09-28 — consumer feedback: HWID ownership, INF versions, SMBIOS keys
+
+Prompted by a driver-checker app built on the published data (replies in
+doc/upstream-requests.md).
+
+- One INF is not one chip. Realtek's `rt640x64.inf`/`rt25cx21x64.inf` bind
+  8125, 8126, 8127, 8136, 8161, 8168… in a single file (600 KB of SUBSYS
+  lines), and ship in all three LAN generations' packages plus the odd
+  combined LAN+WLAN bundle. Family HWID sets built as "every HWID of every INF
+  in the family's payloads" put 27% of HWIDs in several families, and
+  by-hwid (last writer wins) then answered at random. What worked: split
+  anchors own their HWIDs outright, and an INF counts for a family only when
+  it is in a consistent share of that family's payloads, relative to the
+  family that carries it most (INF_RIDE_ALONG = 0.5). An absolute
+  payload-count rule fails: DTT and chipset-INF bundles carry the IPF INF
+  more often than IPF's own packages, which would strip IPF of every HWID.
+- The INF regex scan also catches `[Strings]` keys (`…DEVICEDESC`),
+  registry paths (`Services\pci\Parameters`) and `PCI\VID_…` tokens. A
+  "no dots" rule is wrong: `SWC\AMDOCL-23.19` is a real ID.
+- by-hwid repeated each family's full `known_versions` (every vendor URL) in
+  every HWID file: 9.1 GB for 65k files, and the per-file `generated` stamp
+  made every deploy re-upload all of it. Moved to by-family/; by-hwid is
+  now ~40 MB.
+- SMBIOS keys the catalogs already carried: Dell `systemID` = SMBIOS SKU
+  Number; HP platform `SystemID` = baseboard product; Lenovo machine type =
+  first 4 characters of the MTM product name (catalogv2 lists every sibling
+  type); MSI BIOS file names start with the board code (`7C96v1L9` =
+  MS-7C96, in the baseboard product string). Several MSI boards share a code
+  (MEG X570 ACE/UNIFY = MS-7C35).
+- Missing by-hwid files return Cloudflare's 27 KB HTML 404 with a 4 h
+  `max-age`: a newly added HWID can stay cached as a 404 for 4 h after a
+  deploy.

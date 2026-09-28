@@ -6,6 +6,50 @@ to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html). The
 published data schema is versioned separately (see `schema_version` in every
 `public/v1/*.json` file).
 
+### Data schema 2.0.0 (unreleased) — consumer feedback from a driver-checker app
+
+Breaking:
+- `by-hwid/{hwid}.json` lists **every** family the HWID identifies
+  (`families: [{family_id, family, match_share, water_level}]`, strongest
+  first; top-level `family` names the first). It used to hold only the last
+  family written, so 27% of HWIDs pointed at an arbitrary family
+  (`PCI\VEN_10EC&DEV_8125` → "Realtek 8126 LAN"). `known_versions` moved to
+  the new `by-family/{family_id}.json`; repeating it in every HWID file had
+  made the directory 9.1 GB (now ~40 MB). Stale HWID files are removed on
+  publish.
+- `artefacts.json` `version_normalised` is a JSON array, not a JSON-encoded
+  string.
+
+Fixed:
+- Family HWID sets no longer absorb every HWID of every INF in a family's
+  packages. Split anchors (Realtek 8168/8125/8126, MediaTek generations)
+  belong to their subfamily alone, an INF counts only for families whose
+  packages carry it consistently (not ones it rides along with, like a LAN
+  INF in a combined LAN+WLAN bundle), and preinstall variants pool with their
+  full family. Shared HWIDs fell from 15,836 to ~5,200, and those left are
+  real sharing (Intel Wi-Fi and Killer ship one driver; one Realtek INF binds
+  several NIC generations). Cleaner evidence corrected two assignments
+  (a Dell Intel Wi-Fi 24.50 package filed under Killer Suite).
+- INF scanning no longer records `[Strings]` keys and registry paths as
+  HWIDs (`PCI\VEN_8086&DEV_09AB.DEVICEDESC`, `PCI\PARAMETERS`); the filter
+  also applies to already-extracted INFs. Generic class-code IDs
+  (`PCI\CC_010802`, which AMD's RAID INF lists and every NVMe drive reports)
+  are left out of family sets and lookups.
+
+Added:
+- `infs.json`: INF-level versions, one row per (INF file name, DriverVer)
+  with HWIDs (SUBSYS/REV stripped), families, artefacts and first listing
+  date — so an installed INF version is compared with INF versions.
+- `water-level.json` `lines`: newest version and date span per major-version
+  line, flagging lines that run parallel to the water's.
+- `families.json` `version_equiv` (the listing→canonical scheme rule the
+  index itself applies; NVIDIA INF→marketing, ASRock Realtek UAD) and
+  `download_hint` (NVIDIA, AMD and Intel families with generic drivers).
+- `boards.json` `smbios` match keys: Dell SKU numbers, HP platform IDs,
+  Lenovo machine types (all siblings), MSI board codes. Crawlers record them
+  in the new `board.smbios` column.
+- `manifest.json`: size and sha256 of every aggregate file.
+
 ### Added (unreleased)
 
 - The landing page shows what the latest data refresh changed: water-level

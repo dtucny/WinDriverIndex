@@ -11,11 +11,54 @@ Static JSON, CORS-enabled, served from Cloudflare. Start here:
 
 | Endpoint | What it is |
 |---|---|
-| [`/v1/latest/water-level.json`](https://windriverindex.tucny.com/v1/latest/water-level.json) | Newest known version per driver family |
+| [`/v1/latest/water-level.json`](https://windriverindex.tucny.com/v1/latest/water-level.json) | Newest known version per driver family, with every major-version line (`lines`) |
+| [`/v1/latest/families.json`](https://windriverindex.tucny.com/v1/latest/families.json) | Family table: HWID sets, `version_equiv` scheme rule, `download_hint` |
+| [`/v1/latest/infs.json`](https://windriverindex.tucny.com/v1/latest/infs.json) | INF-level versions: one row per (INF file, DriverVer) with its HWIDs |
+| [`/v1/latest/boards.json`](https://windriverindex.tucny.com/v1/latest/boards.json) | Device catalogue (chipset / socket / product type / SMBIOS match keys) |
+| [`/v1/latest/artefacts.json`](https://windriverindex.tucny.com/v1/latest/artefacts.json) | Every indexed driver listing (vendor, version, date, URL, hashes) |
 | [`/v1/latest/vendor-lag.json`](https://windriverindex.tucny.com/v1/latest/vendor-lag.json) | The vendor-lag metric |
-| [`/v1/latest/families.json`](https://windriverindex.tucny.com/v1/latest/families.json) | Family table with HWID sets |
-| [`/v1/latest/boards.json`](https://windriverindex.tucny.com/v1/latest/boards.json) | Device catalogue (chipset / socket / product type) |
-| `/v1/latest/by-hwid/{hwid}.json` | Point lookup by hardware ID |
+| [`/v1/latest/changes.json`](https://windriverindex.tucny.com/v1/latest/changes.json) | What the latest refresh changed (water moves, new machines) |
+| [`/v1/latest/bios.json`](https://windriverindex.tucny.com/v1/latest/bios.json) | BIOS currency and AGESA water level |
+| [`/v1/latest/manifest.json`](https://windriverindex.tucny.com/v1/latest/manifest.json) | Size and sha256 of every file above: revalidate this one first |
+| `/v1/latest/by-hwid/{hwid}.json` | Point lookup by hardware ID: every family it identifies |
+| `/v1/latest/by-family/{family_id}.json` | One family: water level and every known version |
+| `/v1/latest/by-board/{board_id}.json` | Per-machine report (feeds the board picker) |
+
+By-hwid file names replace `\` with `_` and `&` with `+`
+(`PCI\VEN_10EC&DEV_8125` → `by-hwid/PCI_VEN_10EC+DEV_8125.json`). A missing
+file means no indexed family claims that ID.
+
+### Checking a machine against the index
+
+- **Match devices by HWID.** A device reports several hardware IDs, from most
+  to least specific; try each. A by-hwid file lists every family the ID
+  identifies, ordered by `match_share` (how consistently that family's
+  packages carry it). Generic class-code IDs (`PCI\CC_010802`) are never
+  listed: they match inbox Microsoft drivers too.
+- **Compare INF versions with INF versions.** Windows reports the installed
+  INF's `DriverVer`, which is often not the package version vendors list
+  (a Realtek NIC's `rt640x64.inf` 10.79.x ships inside package 1125.x). Find
+  the installed INF's name in `infs.json` and compare `driver_ver_normalised`
+  against the newest row with the same `inf_name`. `infs.json` HWIDs carry
+  no SUBSYS/REV qualifiers; every device also reports that shorter form.
+- **Compare listings on their own line.** When a family's versions run on
+  parallel numbering lines (AMD 25.x packaging vs 32.x INF), `water-level.json`
+  `lines` gives the newest per major version; `parallel_to_water` marks lines
+  that overlap the water's line in time. `families.json` `version_equiv`
+  gives a family's translation rule into its canonical scheme (a regex with
+  `$1`-style replacement, `flags` apart), e.g. NVIDIA `32.0.15.9186` = `591.86`.
+- **Match machines by SMBIOS**, where `boards.json` has `smbios` keys:
+  `system_sku` (Dell; SMBIOS SKU Number, exact), `baseboard_product` (HP
+  platform ID; baseboard product, exact), `system_product_prefix` (Lenovo
+  machine types; the product name / MTM starts with one),
+  `baseboard_product_contains` (MSI board code such as `MS-7D75`; a substring
+  of the baseboard product — several boards can share one code). Other
+  vendors' boards match by name.
+- **Families with no HWIDs** (`hwids: []`) are drivers whose packages the
+  index cannot unpack (installers, firmware tools, or HP/Lenovo packages,
+  which are indexed from catalog metadata only); show them via `by-board`.
+- **Fetch cheaply.** `manifest.json` carries each file's sha256; re-download
+  only files whose hash changed.
 
 `latest/` tracks the newest crawl; pin an immutable dated snapshot at
 `/v1/{YYYY-MM-DD}/…` for stability. Every file carries a `schema_version` and
@@ -52,7 +95,7 @@ Camoufox browser (`uv run python -m camoufox fetch`, for ASRock listings).
 ## Deployment (Cloudflare R2)
 
 The published JSON is served as static files from R2 behind Cloudflare's CDN
-(spec §8) — chosen because the ~33k per-HWID point-lookup files exceed the
+(spec §8) — chosen because the ~60k per-HWID point-lookup files exceed the
 per-deployment file caps of static-site hosts, while object storage doesn't
 care and R2 egress is free.
 

@@ -3,6 +3,7 @@ losing it costs a re-parse, never a re-crawl."""
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from importlib import resources
 from pathlib import Path
@@ -33,6 +34,7 @@ def _migrate(conn: sqlite3.Connection) -> None:
     for table, column, ddl in [
         ("artefact", "source_type", "TEXT NOT NULL DEFAULT 'vendor'"),
         ("board", "product_type", "TEXT NOT NULL DEFAULT 'motherboard'"),
+        ("board", "smbios", "TEXT"),
     ]:
         cols = {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}
         if column not in cols:
@@ -58,6 +60,19 @@ def upsert_board(conn: sqlite3.Connection, run_date: str, *, vendor: str,
         f"INSERT INTO board ({', '.join(keys)}) VALUES ({', '.join('?' * len(vals))})",
         vals)
     return cur.lastrowid
+
+
+def merge_board_smbios(conn: sqlite3.Connection, board_id: int, key: str,
+                       values) -> None:
+    """Union identifiers into board.smbios[key]. Merged, not replaced: several
+    catalog entries (Dell config-variant systemIDs, per-model cabs) feed one
+    board within a single crawl."""
+    row = conn.execute("SELECT smbios FROM board WHERE board_id = ?",
+                       (board_id,)).fetchone()
+    cur = json.loads(row["smbios"] or "{}") if row else {}
+    cur[key] = sorted(set(cur.get(key, [])) | {v.upper() for v in values if v})
+    conn.execute("UPDATE board SET smbios = ? WHERE board_id = ?",
+                 (json.dumps(cur, sort_keys=True), board_id))
 
 
 def upsert_artefact(conn: sqlite3.Connection, run_date: str, *, vendor: str,

@@ -213,7 +213,12 @@ below the water line.</p>
     <tr><td><a href="/v1/latest/boards.json"><code>/v1/latest/boards.json</code></a></td><td>Board &amp; machine catalogue</td></tr>
     <tr><td><a href="/v1/latest/bios.json"><code>/v1/latest/bios.json</code></a></td><td>BIOS currency + AGESA water level</td></tr>
     <tr><td><a href="/v1/latest/dashboard.json"><code>/v1/latest/dashboard.json</code></a></td><td>Everything this page renders</td></tr>
-    <tr><td><code>/v1/latest/by-hwid/{hwid}.json</code></td><td>Point lookup by hardware ID</td></tr>
+    <tr><td><a href="/v1/latest/infs.json"><code>/v1/latest/infs.json</code></a></td><td>INF-level versions (INF file + DriverVer + HWIDs)</td></tr>
+    <tr><td><a href="/v1/latest/artefacts.json"><code>/v1/latest/artefacts.json</code></a></td><td>Every indexed driver listing</td></tr>
+    <tr><td><a href="/v1/latest/changes.json"><code>/v1/latest/changes.json</code></a></td><td>What the latest refresh changed</td></tr>
+    <tr><td><a href="/v1/latest/manifest.json"><code>/v1/latest/manifest.json</code></a></td><td>Size + sha256 of every file above</td></tr>
+    <tr><td><code>/v1/latest/by-hwid/{hwid}.json</code></td><td>Point lookup by hardware ID (every matching family)</td></tr>
+    <tr><td><code>/v1/latest/by-family/{id}.json</code></td><td>One family: water level + every known version</td></tr>
     <tr><td><code>/v1/latest/by-board/{id}.json</code></td><td>Per-machine report (feeds the picker)</td></tr>
   </tbody>
 </table>
