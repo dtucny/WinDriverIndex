@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How's my hardware doing? — WinDriverIndex</title>
+<meta name="description" content="Pick your motherboard, laptop, desktop, or graphics card and see how current its vendor's driver listings are against the cross-vendor water line.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🩺</text></svg>">
+<style>
+  :root {
+    color-scheme: light;
+    --plane:#f4f4f1; --surface:#fcfcfb; --ink:#0b0b0b; --ink2:#52514e; --muted:#898781;
+    --grid:#e6e5de; --ring:rgba(11,11,11,.10); --accent:#256abf;
+    --good:#0ca30c; --warn:#c98500; --crit:#d03b3b;
+    --shadow:0 1px 2px rgba(11,11,11,.05),0 4px 16px rgba(11,11,11,.05);
+  }
+  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+    color-scheme: dark;
+    --plane:#0d0d0d; --surface:#1a1a19; --ink:#fff; --ink2:#c3c2b7; --muted:#898781;
+    --grid:#2c2c2a; --ring:rgba(255,255,255,.12); --accent:#3987e5;
+    --good:#0ca30c; --warn:#eda100; --crit:#e66767;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.35);
+  }}
+  :root[data-theme="dark"]{
+    color-scheme: dark;
+    --plane:#0d0d0d; --surface:#1a1a19; --ink:#fff; --ink2:#c3c2b7; --muted:#898781;
+    --grid:#2c2c2a; --ring:rgba(255,255,255,.12); --accent:#3987e5;
+    --good:#0ca30c; --warn:#eda100; --crit:#e66767;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.35);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--plane);color:var(--ink);
+    font-family:system-ui,-apple-system,"Segoe UI",sans-serif;line-height:1.5;
+    -webkit-font-smoothing:antialiased}
+  a{color:var(--accent);text-decoration:none} a:hover{text-decoration:underline}
+  .wrap{max-width:860px;margin:0 auto;padding:clamp(20px,4vw,44px) clamp(16px,4vw,32px) 64px}
+  h1{font-size:clamp(1.5rem,3.5vw,2.1rem);margin:.2rem 0 0;letter-spacing:-.02em}
+  .sub{color:var(--ink2);margin:.4rem 0 0;max-width:60ch}
+  .crumb{font-size:.85rem}
+  .card{background:var(--surface);border:1px solid var(--ring);border-radius:14px;
+    box-shadow:var(--shadow);overflow:hidden}
+  /* picker */
+  .picker{margin-top:1.6rem;position:relative}
+  .row{display:flex;gap:8px;flex-wrap:wrap}
+  #q{flex:1;min-width:220px;font:inherit;font-size:1.05rem;padding:12px 14px;
+    border:1px solid var(--ring);border-radius:12px;background:var(--surface);color:var(--ink)}
+  #q:focus{outline:2px solid var(--accent);outline-offset:-1px}
+  .vf{display:flex;gap:6px;flex-wrap:wrap}
+  .vf button{font:inherit;font-size:.85rem;padding:8px 13px;border-radius:10px;cursor:pointer;
+    border:1px solid var(--ring);background:var(--surface);color:var(--ink2)}
+  .vf button[aria-pressed="true"]{border-color:var(--accent);color:var(--accent);font-weight:600}
+  #results{position:absolute;z-index:5;left:0;right:0;top:calc(100% + 6px);max-height:330px;
+    overflow-y:auto;display:none}
+  #results.open{display:block}
+  #results button{display:flex;width:100%;text-align:left;font:inherit;padding:10px 14px;gap:10px;
+    border:none;border-bottom:1px solid var(--grid);background:none;color:var(--ink);cursor:pointer;
+    align-items:baseline}
+  #results button:hover,#results button.sel{background:color-mix(in srgb,var(--accent) 9%,transparent)}
+  #results .v{color:var(--muted);font-size:.8rem;min-width:70px;text-transform:capitalize}
+  #results .s{color:var(--muted);font-size:.8rem;margin-left:auto}
+  /* report */
+  #report{margin-top:1.6rem;display:none}
+  .bhead{padding:18px;border-bottom:1px solid var(--grid)}
+  .bhead h2{margin:0;font-size:1.3rem;letter-spacing:-.01em}
+  .bhead .meta{color:var(--ink2);font-size:.9rem;margin-top:3px;text-transform:capitalize}
+  .verdict{font-size:1rem;margin-top:10px}
+  .verdict b.ok{color:var(--good)} .verdict b.warn{color:var(--warn)} .verdict b.bad{color:var(--crit)}
+  table{border-collapse:collapse;width:100%;font-size:.9rem}
+  th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--grid);white-space:nowrap}
+  td.ver{white-space:normal;overflow-wrap:anywhere;max-width:220px;
+    font-variant-numeric:tabular-nums;font-size:.85rem}
+  thead th{color:var(--muted);font-weight:600;font-size:.75rem;text-transform:uppercase;letter-spacing:.04em}
+  tbody tr:last-child td{border-bottom:none}
+  .num{text-align:right;font-variant-numeric:tabular-nums}
+  .scroll{overflow-x:auto}
+  .pill{display:inline-block;padding:2px 9px;border-radius:20px;font-size:.76rem;font-weight:600}
+  .pill.g{background:color-mix(in srgb,var(--good) 14%,transparent);color:var(--good)}
+  .pill.a{background:color-mix(in srgb,var(--warn) 16%,transparent);color:var(--warn)}
+  .pill.r{background:color-mix(in srgb,var(--crit) 14%,transparent);color:var(--crit)}
+  .pill.m{background:color-mix(in srgb,var(--muted) 16%,transparent);color:var(--muted)}
+  .biosline{padding:12px 18px;border-bottom:1px solid var(--grid);color:var(--ink2);font-size:.92rem}
+  .biosline b{color:var(--ink)}
+  .note{color:var(--muted);font-size:.82rem;margin-top:12px;max-width:64ch}
+  .share{padding:12px 18px;border-top:1px solid var(--grid);font-size:.85rem;color:var(--ink2)}
+  #themeToggle{background:none;border:1px solid var(--ring);color:var(--ink2);border-radius:8px;
+    padding:5px 10px;font:inherit;font-size:.82rem;cursor:pointer;float:right}
+  .spin{color:var(--muted);padding:16px}
+  .xs{color:var(--muted);font-size:.72rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <button id="themeToggle" type="button" aria-label="Toggle colour theme">◐ theme</button>
+  <p class="crumb"><a href="/">← WinDriverIndex</a></p>
+  <h1>How's my hardware doing?</h1>
+  <p class="sub">Pick your motherboard, laptop, desktop, or graphics card and see
+  how its vendor's driver listings compare with the newest version anyone ships
+  for the same silicon — plus BIOS/AGESA status where it applies.</p>
+
+  <div class="picker">
+    <div class="row">
+      <input id="q" type="search" placeholder="Type a name… e.g. B650 Tomahawk, Legion Slim 5, RTX 4070 Ti"
+             autocomplete="off" aria-label="Search devices">
+      <div class="vf" id="vf" role="group" aria-label="Filter by vendor">
+        <button data-v="" aria-pressed="true">All</button>
+      </div>
+    </div>
+    <div id="results" class="card" role="listbox"></div>
+  </div>
+
+  <div id="report" class="card"></div>
+  <p class="note">“Water” is the newest version <i>any</i> source publishes for
+  that driver family — the hardware vendors plus upstream references (Windows
+  Update Catalog, AMD/Intel). Newest is not automatically best; a vendor may
+  legitimately withhold a regressed driver. Method &amp; caveats:
+  <a href="https://github.com/dtucny/WinDriverIndex">GitHub</a>.</p>
+</div>
+
+<script>
+(function(){
+  var root=document.documentElement, btn=document.getElementById('themeToggle');
+  try{var s=localStorage.getItem('wdi-theme'); if(s)root.setAttribute('data-theme',s);}catch(e){}
+  btn.addEventListener('click',function(){
+    var cur=root.getAttribute('data-theme');
+    var next=cur==='dark'?'light':cur==='light'?'dark':
+      (matchMedia('(prefers-color-scheme: dark)').matches?'light':'dark');
+    root.setAttribute('data-theme',next);
+    try{localStorage.setItem('wdi-theme',next);}catch(e){}
+  });
+})();
+
+(async function(){
+  const $=s=>document.querySelector(s);
+  const esc=t=>String(t??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const q=$('#q'), results=$('#results'), report=$('#report'), vf=$('#vf');
+  let boards=[], vendor='', sel=-1, shown=[];
+
+  const NICE={msi:'MSI',asus:'ASUS',gigabyte:'Gigabyte',asrock:'ASRock',lenovo:'Lenovo',dell:'Dell',hp:'HP'};
+  try{
+    const r=await fetch('/v1/latest/boards.json');
+    boards=(await r.json()).data;
+    // vendor pills follow the data — new vendors appear automatically
+    const vs=[...new Set(boards.map(b=>b.vendor))].sort();
+    vf.insertAdjacentHTML('beforeend', vs.map(v=>
+      `<button data-v="${v}" aria-pressed="false">${NICE[v]||v}</button>`).join(''));
+  }catch(e){
+    results.innerHTML='<div class="spin">Could not load the device list — try again later.</div>';
+    results.classList.add('open');
+    return;
+  }
+
+  vf.addEventListener('click',e=>{
+    const b=e.target.closest('button'); if(!b)return;
+    vendor=b.dataset.v;
+    vf.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));
+    render(); q.focus();
+  });
+
+  let matchTotal=0;
+  function matches(){
+    const t=q.value.trim().toLowerCase();
+    let list=boards.filter(b=>!vendor||b.vendor===vendor);
+    if(t){
+      const words=t.split(/\s+/);
+      list=list.filter(b=>{
+        const hay=(b.vendor+' '+b.name+' '+(b.chipset||'')).toLowerCase();
+        return words.every(w=>hay.includes(w));
+      });
+    }
+    matchTotal=list.length;
+    return list.slice(0,20);
+  }
+  function render(){
+    shown=matches(); sel=-1;
+    if(!q.value.trim() && !vendor){results.classList.remove('open');return;}
+    results.innerHTML=(shown.length
+      ? shown.map((b,i)=>`<button role="option" data-i="${i}"><span class="v">${esc(b.vendor)}</span>`+
+          `<span>${esc(b.name)}</span><span class="s">${esc(b.socket||b.chipset||'')}</span></button>`).join('')
+      : '<div class="spin">No devices match.</div>')
+      +(matchTotal>shown.length
+        ? `<div class="spin">showing ${shown.length} of ${matchTotal.toLocaleString()} — keep typing to narrow</div>`
+        : '');
+    results.classList.add('open');
+  }
+  q.addEventListener('input',render);
+  q.addEventListener('keydown',e=>{
+    if(!results.classList.contains('open'))return;
+    const opts=[...results.querySelectorAll('button')];
+    if(e.key==='ArrowDown'){sel=Math.min(sel+1,opts.length-1);}
+    else if(e.key==='ArrowUp'){sel=Math.max(sel-1,0);}
+    else if(e.key==='Enter'&&sel>=0){opts[sel].click();return;}
+    else if(e.key==='Escape'){results.classList.remove('open');return;}
+    else return;
+    e.preventDefault();
+    opts.forEach((o,i)=>o.classList.toggle('sel',i===sel));
+    if(opts[sel])opts[sel].scrollIntoView({block:'nearest'});
+  });
+  results.addEventListener('click',e=>{
+    const b=e.target.closest('button'); if(!b)return;
+    const board=shown[+b.dataset.i];
+    location.hash=String(board.board_id);
+    load(board.board_id);
+  });
+  document.addEventListener('click',e=>{
+    if(!e.target.closest('.picker'))results.classList.remove('open');
+  });
+
+  function pill(lag){
+    if(lag===0)return '<span class="pill g">current</span>';
+    if(lag==null)return '<span class="pill m">n/a</span>';
+    if(lag<=365)return `<span class="pill a">${lag} d behind</span>`;
+    return `<span class="pill r">${(lag/365).toFixed(1)} yr behind</span>`;
+  }
+  const CMP={chipset:'Chipset',graphics:'Graphics',audio:'Audio',lan:'LAN',
+             wlan:'Wireless',bluetooth:'Wireless',storage:'Storage',usb:'USB',
+             npu:'NPU',utility:'Utility',camera:'Camera',wwan:'WWAN'};
+
+  async function load(id){
+    results.classList.remove('open');
+    report.style.display='block';
+    report.innerHTML='<div class="spin">Loading…</div>';
+    let d;
+    try{ d=await (await fetch(`/v1/latest/by-board/${id}.json`)).json(); }
+    catch(e){ report.innerHTML='<div class="spin">No data for that device.</div>'; return; }
+    const b=d.board, fams=d.families||[];
+    q.value=b.name;
+    const lags=fams.map(f=>f.lag_days).filter(x=>x!=null);
+    const worst=lags.length?Math.max(...lags):null;
+    const behind=fams.filter(f=>(f.lag_days??0)>365).length;
+    const cur=fams.filter(f=>f.lag_days===0).length;
+    let vcls='ok', vtext;
+    if(!fams.length && d.gpu_reference){vcls='warn';vtext=`${NICE[b.vendor]||b.vendor} publishes no drivers for this card — the GPU driver comes straight from the silicon vendor.`;}
+    else if(worst==null)vtext='Not enough data to judge this device.';
+    else if(worst===0)vtext='Fully current — every listed driver family is at the water line.';
+    else if(worst<=365){vcls='warn';vtext=`Reasonably maintained — worst family is ${worst} days behind; ${cur} of ${fams.length} current.`;}
+    else {vcls='bad';vtext=`${behind} of ${fams.length} driver families are more than a year behind — worst is ${(worst/365).toFixed(1)} years.`;}
+    const bios=d.bios?`<div class="biosline">BIOS: last update <b>${esc(d.bios.last_bios||'unknown')}</b>`+
+      (d.bios.last_bios_version?` · newest version <b>${esc(d.bios.last_bios_version)}</b>`+
+        (d.bios.last_bios_version_date!==d.bios.last_bios?` (${esc(d.bios.last_bios_version_date)})`:''):'')+
+      (d.bios.agesa?` · AGESA <b>${esc(d.bios.agesa)}</b> ${d.bios.agesa_at_water?'<span class="pill g">newest</span>':'<span class="pill a">behind</span>'}`:'')+
+      `</div>`:'';
+    report.innerHTML=`
+      <div class="bhead">
+        <h2>${esc(b.name)}</h2>
+        <div class="meta">${esc(b.vendor)} · ${esc(b.socket||'')} ${esc(b.chipset||'')}
+          ${b.support_url?` · <a href="${esc(b.support_url)}" rel="nofollow">vendor page ↗</a>`:''}</div>
+        <div class="verdict"><b class="${vcls}">${esc(vtext)}</b></div>
+      </div>
+      ${bios}
+      ${d.gpu_reference?`<div class="biosline">Current ${esc(d.gpu_reference.family)} driver: <b>${esc(d.gpu_reference.water_version)}</b>${d.gpu_reference.water_first_published?` (${esc(d.gpu_reference.water_first_published)})`:''} — install/update via the GPU maker's own tool (NVIDIA App / AMD Adrenalin / Intel Arc Control), not the card vendor's page.</div>`:''}
+      ${fams.length?`<div class="scroll"><table>
+        <thead><tr><th>Component</th><th>Driver family</th><th class="num">Listed</th>
+          <th class="num">Newest anywhere</th><th class="num">Status</th></tr></thead>
+        <tbody>
+        ${fams.map(f=>`<tr>
+          <td>${esc(CMP[f.component]||f.component)}</td>
+          <td>${esc(f.family)}${f.upstream_only?' <span class="pill m" title="newest version currently ships only via Windows Update / the silicon vendor">upstream</span>':''}</td>
+          <td class="num ver">${esc(f.listed_version||'—').replaceAll('/','/\u200b')}${f.listed_equiv
+            ? `<br><span class="xs" title="the vendor lists the driver package's INF version; this is the same driver in the scheme the water level uses">= ${esc(f.listed_equiv)}</span>`:''}</td>
+          <td class="num ver">${f.same_line_newest
+            ? (f.same_line_newest===f.listed_version||f.same_line_newest===f.listed_equiv
+                ? `<span title="this listing is the newest on its own numbering line">${esc(f.same_line_newest)} ✓</span>`
+                : esc(f.same_line_newest))
+              +`<br><span class="xs" title="this listing's version line is maintained in parallel with newer lines, so a straight version comparison can mislead; the lag figure is date-based">parallel lines — family newest: ${esc(f.water_version)}</span>`
+            : esc(f.water_version||'—').replaceAll('/','/\u200b')}</td>
+          <td class="num">${pill(f.lag_days)}</td></tr>`).join('')}
+        </tbody>
+      </table></div>`:''}
+      <div class="share">Share this device: <a href="/board.html#${b.board_id}">windriverindex.tucny.com/board.html#${b.board_id}</a></div>`;
+    report.scrollIntoView({behavior:'smooth',block:'start'});
+  }
+
+  const h=location.hash.replace('#','');
+  if(/^\d+$/.test(h))load(+h);
+  window.addEventListener('hashchange',()=>{
+    const h=location.hash.replace('#','');
+    if(/^\d+$/.test(h))load(+h);
+  });
+})();
+</script>
+</body>
+</html>

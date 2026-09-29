@@ -61,6 +61,18 @@ file means no indexed family claims that ID.
   `baseboard_product_contains` (MSI board code such as `MS-7D75`; a substring
   of the baseboard product — several boards can share one code). Other
   vendors' boards match by name.
+- **Check the BIOS by version, not date.** Windows reports the BIOS's build
+  date, which precedes the vendor's publish date by weeks or months.
+  `by-board` `bios.last_bios_version` is the newest stable BIOS's version
+  string as the vendor lists it (`last_bios_version_date` is its publish
+  date; `last_bios` also counts betas). Compare it with SMBIOS
+  `BIOSVersion`: exact for ASUS (`1205`), Gigabyte (`F26`), ASRock
+  (`3.20`), Dell (`1.28.1`) and Lenovo Legion/LOQ (`M3CN50WW`); HP's SMBIOS
+  string ends with it (`U23 Ver. 02.21.00`); MSI lists `7D73v1L2` where
+  SMBIOS says `1.L2` (drop the board code and `v`). Lenovo Think catalog
+  strings vary (`1.36`, `M1UKT79A_1.0.0.121`, `BIOS1.63_EC1.34`): match
+  SMBIOS's image ID (`M1UKT79A`) or its bracketed number (`N2JET92W
+  (1.36 )`) as a token.
 - **Families with no HWIDs** (`hwids: []`) are drivers whose packages the
   index cannot unpack (installers, firmware tools, or HP/Lenovo packages,
   which are indexed from catalog metadata only); show them via `by-board`.

@@ -6,6 +6,7 @@ __pycache__/
 dist/
 
 # Generated JSON output is not tracked (rebuildable via `winidx publish`),
-# but the hand-authored landing page is source — keep just that file.
+# but the hand-authored pages are source — keep just those files.
 public/*
 !public/index.html
+!public/board.html

@@ -17,6 +17,11 @@ tracked separately and only V2 is reported as the AM4 water line.
 
 Beta BIOS rows count as vendor activity (days-since-last-BIOS) but never set
 or satisfy the AGESA water level.
+
+Each board also carries its newest stable BIOS *version* (the vendor's string,
+e.g. Lenovo ``M3CN50WW``, MSI ``7D73v1L2``). Windows reports a BIOS's build
+date, which precedes the vendor's publish date by weeks or months, so a date
+comparison calls a current machine behind; a version match does not.
 """
 
 from __future__ import annotations
@@ -59,6 +64,17 @@ def agesa_key(version: str, patch: str = "") -> tuple:
     return (head, tail, patch)
 
 
+_BETA_TAG = re.compile(r"\s*\((?:beta|alpha)[^)]*\)\s*$", re.I)
+_HP_REVISION = re.compile(r"\s+[A-Z]\s+\d+$")
+
+
+def _clean_version(raw: str | None) -> str | None:
+    """Vendor BIOS version without listing decorations: MSI appends
+    '(Beta version)' to some names, HP a SoftPaq revision ('02.21.00 A 1')."""
+    v = _HP_REVISION.sub("", _BETA_TAG.sub("", raw or "")).strip()
+    return v if v and v != "-" else None
+
+
 def _line_for(socket: str | None, line: str) -> str | None:
     """Resolve a parsed line tag against the board's socket; None = untracked."""
     if socket == "AM5":
@@ -75,19 +91,28 @@ def compute(conn: sqlite3.Connection, today: dt.date | None = None) -> dict:
         "SELECT board_id, vendor, name, socket FROM board")}
 
     per_board: dict[int, dict] = defaultdict(
-        lambda: {"last": None, "agesa": None, "agesa_line": None})
+        lambda: {"last": None, "agesa": None, "agesa_line": None,
+                 "stable": None})
     for r in conn.execute("""
-            SELECT ba.board_id, a.release_date, ba.listed_date,
-                   a.description_text, a.is_beta
+            SELECT ba.board_id, a.artefact_id, a.release_date, ba.listed_date,
+                   a.version_raw, a.description_text, a.is_beta
             FROM board_artefact ba
             JOIN artefact a ON a.artefact_id = ba.artefact_id
-            WHERE a.kind = 'bios'"""):
+            WHERE a.kind = 'bios'
+              -- ASUS/ASRock list ME update tools and audio/USB firmware
+              -- beside the BIOS; they are neither BIOS activity nor versions
+              AND COALESCE(a.component_hint, '') NOT IN ('Intel ME', 'Firmware')
+            """):
         b = per_board[r["board_id"]]
         date = r["release_date"] or r["listed_date"]
         if date and (b["last"] is None or date > b["last"]):
             b["last"] = date            # betas count as activity
         if r["is_beta"]:
             continue
+        ver = _clean_version(r["version_raw"])
+        if date and ver and (b["stable"] is None
+                             or (date, r["artefact_id"]) > b["stable"][:2]):
+            b["stable"] = (date, r["artefact_id"], ver)
         parsed = parse_agesa(r["description_text"])
         if parsed:
             line = _line_for(boards[r["board_id"]]["socket"], parsed[0])
@@ -132,6 +157,8 @@ def compute(conn: sqlite3.Connection, today: dt.date | None = None) -> dict:
     per_board_out = {
         bid: {
             "last_bios": b["last"],
+            "last_bios_version": b["stable"][2] if b["stable"] else None,
+            "last_bios_version_date": b["stable"][0] if b["stable"] else None,
             "agesa": (b["agesa"][0] + (f" Patch {b['agesa'][1]}" if b["agesa"][1] else "")
                       if b["agesa"] else None),
             "agesa_line": b["agesa_line"],

@@ -66,6 +66,18 @@ Added:
   the device's family. Year-numbered MediaTek builds never set those
   families' water and are always a parallel line.
 
+### Data 2.0.x — third round of consumer feedback (unreleased)
+
+- `by-board` `bios` gains `last_bios_version` (the newest stable BIOS's
+  version string, e.g. `M3CN50WW`, `7D73v1L3`) and `last_bios_version_date`,
+  so a machine's SMBIOS `BIOSVersion` can be matched exactly instead of
+  comparing its build date with a publish date. MSI's `(Beta version)` and
+  HP's SoftPaq revision (`02.21.00 A 1`) are stripped. The board page shows
+  the version.
+- BIOS stats and versions ignore ASUS/ASRock "Intel ME" and "Firmware"
+  rows (ME update tools, audio/USB firmware listed beside the BIOS). Three
+  ASUS boards with only such rows drop out of `boards_with_bios`.
+
 ### Added (unreleased)
 
 - The landing page shows what the latest data refresh changed: water-level

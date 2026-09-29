@@ -285,3 +285,42 @@ display INFs are renamed every release, so series is `u*.inf`). That row is
 newest 26.x-branch INFs (32.0.31xxx) don't list RDNA2 devices at all, so the
 family water overstates what such a device can install. No per-device flag
 is needed: `infs.json` answers it.
+
+# Third round (data 2.0.x)
+
+## BIOS version, not just date: added
+
+`by-board` `bios` now has `last_bios_version`: the vendor's version string
+for the newest **stable** BIOS, with `last_bios_version_date` its publish
+date (`last_bios` still counts betas as activity, so the two dates can
+differ). willow: `M3CN50WW`, 2026-08-07. The README lists how each vendor's
+string relates to SMBIOS `BIOSVersion`. It is an exact match for ASUS,
+Gigabyte, ASRock, Dell and Lenovo Legion/LOQ. HP's SMBIOS string ends with
+it. MSI needs a transform: the index publishes the listed name `7D73v1L2`,
+which SMBIOS reports as `1.L2`. Lenovo Think catalog strings are mixed
+BIOS/EC forms, so match on a token.
+
+Two fixes came with it. ASUS lists Intel ME update tools and audio firmware
+in its BIOS category, so "newest BIOS" could have been an ME tool
+(`16.1.40.2765v3`). Those rows no longer count for BIOS versions or dates.
+
+On dates: Lenovo publishes three for this package. The web page shows the
+file date, **03 Aug** (pcsupport `Date`). System Update's descriptor, which
+Vantage reads and the index uses, says **07 Aug**. The document was last
+modified on 20 Aug. None of them is the build date, 2026-04-23, that
+Windows reports. A version match avoids all of them; keep the 180-day date
+window only as a fallback for boards without a version.
+
+The MSI example is one release behind: MSI published `7D73v1L3` for the
+MPG B650I EDGE WIFI on 2026-09-09.
+
+## Lenovo INFs: agreed, same cause as #9
+
+Correct. Lenovo is indexed from catalog metadata, so its customised INFs
+(`hdxacplv.inf`) have no `infs.json` rows. Staying within the installed
+INF's series and falling back to the package level is the right behaviour.
+A cross-OEM chip-ID match picks another vendor's INF with its own
+numbering. The fix is fetching Lenovo payloads. The pcsupport listing
+already carries each file's URL and SHA-256, so the crawler can do this.
+It is still scheduled for a later refresh.
+

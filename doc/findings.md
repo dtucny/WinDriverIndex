@@ -492,3 +492,25 @@ doc/upstream-requests.md).
   into `{"error":"not_found"}` (application/json, CORS, max-age=300); its
   same-zone fetch() goes straight to R2. Free plan: 100k Worker
   requests/day, and every /v1 request counts.
+
+## 2026-09-29 — BIOS versions (third round of consumer feedback)
+
+- Windows reports a BIOS's build date, and vendors publish it later: willow's
+  M3CN50WW was built 2026-04-23 and published in August. Only a version
+  comparison can say "current".
+- Lenovo gives three dates for one BIOS package: pcsupport file `Date`,
+  shown on the web page (2026-08-03); the System Update descriptor's
+  `<ReleaseDate>` (2026-08-07, used by the index and by Vantage); and
+  `Updated`, the document's "Last Modified" (2026-08-20). The document's
+  "Original Publish Date" (2023) is the first BIOS in the series.
+- ASUS files Intel ME update tools (component "Intel ME", 1,137 rows) and
+  audio/USB firmware ("Firmware") under BIOS; ASRock has 14 "Firmware" rows.
+  The BIOS stage excludes both.
+- BIOS version strings and SMBIOS `BIOSVersion`: ASUS, Gigabyte, ASRock,
+  Dell and Lenovo consumer are identical. HP's SMBIOS string is
+  `<family> Ver. <version>`, and some SoftPaqs append a revision
+  (`02.21.00 A 1`). MSI lists `<board code>v<ver>` (`7D73v1L2`) where SMBIOS
+  has `1.L2`. Lenovo Think catalogv2 strings mix forms (`1.36`,
+  `M1UKT79A_1.0.0.121`, `BIOS1.63_EC1.34`, `(none)-1.12`,
+  `R1FET65W(1.39)_R1PET45W(1.37)`).
+
