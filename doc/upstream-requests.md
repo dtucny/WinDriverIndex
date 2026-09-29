@@ -394,3 +394,21 @@ these, ask Windows Update from the client:
 - **Catalog search by hardware ID** as a fallback: public and cheap, but it
   lists every OEM's build of an ID, not the one this machine would get.
 
+
+## Windows Update offers (WILLOW, 2026-09-29): agreed
+
+- **Firmware capsule 1.50.0.0 for "System Firmware".** Don't guess from
+  dates. The `UEFI\RES_{guid}` device's installed firmware version is on the
+  device (firmware-version property) and in the ESRT
+  (`HKLM\HARDWARE\UEFI\ESRT\{guid}`). A capsule's version uses the same
+  encoding. When they match, the offer re-packages the installed BIOS
+  (Windows ranks Lenovo's INF above the generic `c_firmware.inf`), so don't
+  count it as an update.
+- **Universal Device Client 26.8.0.29.** Lenovo component bound to
+  `ROOT\UDSUDCDRIVER`. The index doesn't collect `ROOT\` IDs and Lenovo
+  payloads aren't fetched, so Windows Update is its only source.
+- **Nothing offered for the 7 behind.** Microsoft targets OEM builds at
+  machines. The same applies to `infs.json` rows whose only source is
+  `wucatalog`: they are builds Windows Update ships to some OEM's machines,
+  not necessarily this one. Label them as such ("newer build exists, another
+  OEM, via Windows Update").

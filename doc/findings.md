@@ -529,4 +529,15 @@ doc/upstream-requests.md).
   regex doesn't include.
 - NVIDIA's lookup service lists releases the day they ship (617.14 on
   2026-09-22, the same day as that refresh's crawl, which missed it).
+- 2026-09-29 refresh: Windows Update query picks are fragile. Family HWID
+  sets hold every ID of every INF in the family's packages (4,023 for
+  Realtek 8125, incl. 8126/8127/8168), and ranking by newest INF date let
+  fresh INFs reorder the top 3: 8125 was answered by an 8127 driver,
+  RST lost the B06F/B07F ids that carry 21.1, MediaTek 6E lost DEV_7920
+  (the only id with 3.6.2.1427; all 6E chips tie because one INF binds
+  them). Now: owned HWIDs, Realtek LAN anchors only, rank by (INF version,
+  date), 6 queries per family (~235 per run).
+- Upstream pruning keys on `last_seen < run_date`, so a same-day re-run
+  keeps rows an earlier run wrote. After changing wucatalog family rules
+  mid-day, delete the affected rows by hand.
 

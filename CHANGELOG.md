@@ -89,6 +89,13 @@ Not yet deployed:
   saw these as "newer than the index" on two real machines.
 - `infs.json` keeps vendor-qualified class IDs (`PCI\VEN_1002&CC_0403`) for
   INFs that bind nothing more specific, such as AMD's `amdafd.inf`.
+- Windows Update Catalog queries use each family's owned HWIDs (the by-hwid
+  rules), the Realtek LAN generations query only their own chip, IDs rank by
+  the newest INF version binding them (date as tie-break), and up to 6 IDs
+  are queried per family instead of 3. New INFs had shifted the old
+  date-ranked picks: Realtek 8125 got an 8127 driver, Intel RST lost its
+  21.1 line, MediaTek 6E lost 3.6.2 (only DEV_7920 carries it). "Laptop OEM
+  Audio" (several vendors' schemes) is no longer queried.
 
 ### Refreshes and site, 2026-09-02 to 2026-09-24
 

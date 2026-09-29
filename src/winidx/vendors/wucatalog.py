@@ -25,7 +25,7 @@ import sqlite3
 from collections import Counter, defaultdict
 
 from .. import db, versions
-from ..families import inf_hwids_by_name
+from ..families import SUBFAMILIES, hwid_support, inf_hwids_by_name
 
 VENDOR = "wucatalog"
 SEARCH = "https://www.catalog.update.microsoft.com/Search.aspx"
@@ -39,7 +39,9 @@ _ROW = re.compile(r"<tr id=\"[0-9a-f-]{36}_R\d+\".*?</tr>", re.S)
 _CELL = re.compile(r"<td[^>]*>(.*?)</td>", re.S)
 _TAG = re.compile(r"<[^>]+>")
 
-MAX_QUERIES_PER_FAMILY = 3
+# one INF often binds a whole chip generation, so ranks tie and only one of
+# the tied ids may carry the newest build (MediaTek 6E: DEV_7920 alone)
+MAX_QUERIES_PER_FAMILY = 6
 
 # PCI vendor ids per silicon vendor: prefixes from other vendors' silicon are
 # bundle contamination (a Killer package carries Intel Wi-Fi INFs) and must
@@ -55,7 +57,14 @@ _VEN_IDS = {
 
 # Families whose HWID sets are known-contaminated by bundling: WU queries for
 # them return a different component's driver, so they get no upstream row.
-BLOCKLIST = {"Killer LAN", "Killer Wi-Fi", "Killer Bluetooth", "Killer Suite"}
+BLOCKLIST = {"Killer LAN", "Killer Wi-Fi", "Killer Bluetooth", "Killer Suite",
+             # several silicon vendors' schemes in one family (Senary 6.x,
+             # Cirrus 20.x): a Catalog max across them means nothing
+             "Laptop OEM Audio"}
+# families whose anchors are exactly their chips: query only those. MediaTek's
+# anchors are a subset of its chips (DEV_7920 alone carries 6E's newest), so
+# it keeps every owned id.
+ANCHOR_ONLY = {"Realtek 8168 LAN", "Realtek 8125 LAN", "Realtek 8126 LAN"}
 
 # WU titles carry the setup class ("Realtek Semiconductor Corp. Net Driver
 # Update"). Combo packages (Wi-Fi + Bluetooth) leave PCI Wi-Fi ids in
@@ -97,21 +106,36 @@ def crawl(conn: sqlite3.Connection, client, run_date: str,
         if f["name"] not in BLOCKLIST]
     if limit:
         fams = fams[:limit]
-    # newest INF driver_date claiming each hwid: query selection prefers the
+    # newest INF claiming each hwid: query selection prefers the
     # devices CURRENT drivers support, not the devices with the most SUBSYS
     # variants (popularity picked decade-old silicon for AMD Graphics and
     # missed the modern iGPU/dGPU ids entirely)
-    hw_date: dict[str, str] = {}
+    # rank = (newest INF version claiming the hwid, its date): by date alone a
+    # freshly re-dated legacy INF (Intel VROC 9.x) outranked the RST 21.x ids
+    hw_date: dict[str, tuple] = {}
     for r in conn.execute(
-            "SELECT driver_date, hwids FROM inf WHERE driver_date IS NOT NULL"):
+            "SELECT driver_date, driver_ver, hwids FROM inf"
+            " WHERE driver_date IS NOT NULL"):
+        rank = (versions.compare_key(versions.parse(r["driver_ver"] or "")),
+                r["driver_date"])
         for h in json.loads(r["hwids"]):
             hu = h.upper()
-            if r["driver_date"] > hw_date.get(hu, ""):
-                hw_date[hu] = r["driver_date"]
+            if rank > hw_date.get(hu, ((), "")):
+                hw_date[hu] = rank
+    # query only the HWIDs a family owns (the by-hwid rules), and for the
+    # Realtek LAN generations only their anchors: their INFs bind 8125/8126/
+    # 8127/8168 at once, so the 8125 family was answered with an 8127 driver
+    owned = hwid_support(conn)
+    anchors = {name: {a.upper() for a in anc} for name, _sv, _c, anc in SUBFAMILIES}
 
     n_fam = n_new = n_queries = 0
     for fam in fams:
-        prefixes = _representative_prefixes(json.loads(fam["hwids"]),
+        ids = list(owned.get(fam["family_id"]) or json.loads(fam["hwids"]))
+        if fam["name"] in ANCHOR_ONLY and (anc := anchors.get(fam["name"])):
+            ids = [h for h in ids
+                   if any(h.upper() == a or h.upper().startswith(a + "&") for a in anc)
+                   ] or ids
+        prefixes = _representative_prefixes(ids,
                                             fam["silicon_vendor"], hw_date,
                                             buses=_COMPONENT_BUSES.get(fam["component"]))
         found = []
@@ -210,18 +234,18 @@ def _crawl_components(conn, client, run_date, log) -> int:
 
 
 def _representative_prefixes(hwids: list[str], silicon_vendor: str,
-                             hw_date: dict[str, str] | None = None,
+                             hw_date: dict[str, tuple] | None = None,
                              buses: tuple[str, ...] | None = None) -> list[str]:
     """Up to N distinct VEN/DEV (or VID/PID) prefixes — a family's HWID set
     can be huge (AMD graphics); its silicon ids are few. Ranked by the newest
-    INF driver_date claiming the prefix (recency), then by frequency: the
+    INF (version, date) claiming the prefix, then by frequency: the
     most-common prefix is often a legacy chip with many SUBSYS variants,
     while the water lives on the ids current drivers support. Where the
     family's silicon vendor has known PCI VEN ids, prefixes from other
     vendors' silicon (bundled INFs) are dropped."""
     allowed = _VEN_IDS.get(silicon_vendor)
     counts: Counter[str] = Counter()
-    newest: dict[str, str] = {}
+    newest: dict[str, tuple] = {}
     for h in hwids:
         hu = h.upper()
         if buses and not hu.startswith(tuple(b + "\\" for b in buses)):
@@ -235,11 +259,11 @@ def _representative_prefixes(hwids: list[str], silicon_vendor: str,
                         and ven.group(1) not in allowed:
                     break
                 counts[prefix] += 1
-                d = (hw_date or {}).get(hu, "")
-                if d > newest.get(prefix, ""):
+                d = (hw_date or {}).get(hu, ((), ""))
+                if d > newest.get(prefix, ((), "")):
                     newest[prefix] = d
                 break
-    ranked = sorted(counts, key=lambda p: (newest.get(p, ""), counts[p]),
+    ranked = sorted(counts, key=lambda p: (newest.get(p, ((), "")), counts[p]),
                     reverse=True)
     return ranked[:MAX_QUERIES_PER_FAMILY]
 
