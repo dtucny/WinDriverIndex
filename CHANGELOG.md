@@ -6,6 +6,14 @@ to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html). The
 published data schema is versioned separately (see `schema_version` in every
 `public/v1/*.json` file).
 
+## [Unreleased]
+
+## [0.2.0] — 2026-09-29
+
+Seven vendors (ASUS, ASRock, Gigabyte, MSI, Lenovo, Dell, HP) plus
+graphics cards, upstream reference sources, BIOS/AGESA currency, the board
+picker and data schema 2.0. Everything below was live at release.
+
 ### Data schema 2.0.0 — consumer feedback from a driver-checker app (live 2026-09-28)
 
 Breaking:
@@ -66,9 +74,7 @@ Added:
   the device's family. Year-numbered MediaTek builds never set those
   families' water and are always a parallel line.
 
-### Data 2.0.x — third round of consumer feedback
-
-Live 2026-09-29:
+### Data 2.0.x — third round of consumer feedback (live 2026-09-29)
 
 - `by-board` `bios` gains `last_bios_version` (the newest stable BIOS's
   version string, e.g. `M3CN50WW`, `7D73v1L3`) and `last_bios_version_date`,
@@ -79,8 +85,6 @@ Live 2026-09-29:
 - BIOS stats and versions ignore ASUS/ASRock "Intel ME" and "Firmware"
   rows (ME update tools, audio/USB firmware listed beside the BIOS). Three
   ASUS boards with only such rows drop out of `boards_with_bios`.
-Not yet deployed:
-
 - `infs.json` gains upstream INF versions and a `sources` field. Windows
   Update Catalog rows for software-component INFs (queried by each INF's
   own `SWC\` IDs; one row per version, listing the IDs it is newest for),
@@ -138,8 +142,6 @@ Fixed:
 - Bundle whitelist additions for genuine multi-driver packages (chipset INF
   utilities with IPF/DTT/PMT/HID, OEM Realtek HDA with Intel GNA/SST, AMD
   graphics preinstalls with RAID bottom drivers).
-
-## [Unreleased]
 
 ### Added (v0.2 groundwork)
 - `artefact.source_type` (`vendor`/`upstream`) and `board.product_type`
@@ -392,5 +394,6 @@ First working end-to-end pipeline across all four in-scope vendors.
   "BlueTooth Driver" entries resolve only via INF evidence.
 - Laptops, GPUs, and pre-AM4/pre-12th-gen hardware are out of scope for v1.
 
-[Unreleased]: https://github.com/dtucny/WinDriverIndex/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/dtucny/WinDriverIndex/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/dtucny/WinDriverIndex/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/dtucny/WinDriverIndex/releases/tag/v0.1.0
