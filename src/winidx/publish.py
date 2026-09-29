@@ -677,6 +677,42 @@ def _fold_realtek_aliases(groups: dict) -> None:
         del groups[(key, ver)]
 
 
+def _merge_upstream_infs(conn, groups: dict) -> None:
+    """Add INF versions known only upstream (upstream_inf: Windows Update
+    software components, AMD chipset release notes). A version a vendor
+    package also carries just gains the source; a new one becomes a row with
+    no artefacts, no DriverVer date, and first_published = the source's date.
+    Class and families come from the same INF's vendor rows."""
+    by_name: dict[str, list[dict]] = defaultdict(list)
+    for (_k, _v), g in groups.items():
+        if g["inf_name"]:
+            by_name[g["inf_name"]].append(g)
+    for r in conn.execute("SELECT source, inf_name, driver_ver, published, hwids"
+                          " FROM upstream_inf"):
+        name, ver = r["inf_name"], r["driver_ver"]
+        norm = list(versions.parse(ver).tuple or [])
+        if not norm:
+            continue
+        siblings = by_name.get(name, [])
+        twin = next((g for g in siblings if g["driver_ver_normalised"] == norm), None)
+        if twin:
+            twin["sources"].add(r["source"])
+            continue
+        g = groups.setdefault((name, ver), {
+            "inf_name": name, "inf_series": _inf_series(name),
+            "driver_ver": ver, "driver_ver_aliases": [],
+            "driver_ver_normalised": norm, "driver_date": None,
+            "class": next((s["class"] for s in siblings if s["class"]), None),
+            "family_ids": set().union(*(s["family_ids"] for s in siblings)),
+            "artefact_ids": set(), "hwids": set(),
+            "first_published": r["published"], "sources": set()})
+        g["sources"].add(r["source"])
+        g["hwids"].update(json.loads(r["hwids"]))
+        if not g["hwids"]:
+            g["hwids"].update(*(s["hwids"] for s in siblings))
+        by_name[name].append(g)
+
+
 def _infs(conn) -> list[dict]:
     """infs.json: one row per (INF file name, DriverVer). Windows reports the
     INSTALLED INF's DriverVer, which is often not the package version vendors
@@ -701,8 +737,9 @@ def _infs(conn) -> list[dict]:
             continue
         sha = r["inf_sha256"]
         if sha not in cleaned:
-            cleaned[sha] = sorted({hwids.base(h)
-                                   for h in hwids.specific(json.loads(r["hwids"]))})
+            tokens = json.loads(r["hwids"])
+            cleaned[sha] = (sorted({hwids.base(h) for h in hwids.specific(tokens)})
+                            or hwids.vendor_class(tokens))
         if not cleaned[sha]:
             continue
         key = _inf_key(r["path"], sha)
@@ -715,7 +752,7 @@ def _infs(conn) -> list[dict]:
             "driver_ver_normalised": list(versions.parse(r["driver_ver"]).tuple or []),
             "driver_date": r["driver_date"], "class": r["class"],
             "family_ids": set(), "artefact_ids": set(), "hwids": set(),
-            "first_published": None})
+            "first_published": None, "sources": {"vendor"}})
         g["hwids"].update(cleaned[sha])
         if r["driver_date"] and (not g["driver_date"] or r["driver_date"] < g["driver_date"]):
             g["driver_date"] = r["driver_date"]
@@ -727,8 +764,10 @@ def _infs(conn) -> list[dict]:
             if d and (not g["first_published"] or d < g["first_published"]):
                 g["first_published"] = d
     _fold_realtek_aliases(groups)
+    _merge_upstream_infs(conn, groups)
     out = []
     for g in groups.values():
+        g["sources"] = sorted(g["sources"])
         g["family_ids"] = sorted(g["family_ids"])
         g["artefact_ids"] = sorted(g["artefact_ids"])
         g["hwids"] = sorted(g["hwids"])

@@ -66,3 +66,16 @@ def base(hwid: str) -> str:
     its hardware IDs, so it is the stable key to match an installed device
     against an INF without enumerating every OEM subsystem."""
     return _QUALIFIERS.sub("", hwid)
+
+
+_VENDOR_CLASS = re.compile(r"^PCI\\VEN_[0-9A-F]{4}&CC_[0-9A-F]{4,6}$", re.I)
+
+
+def vendor_class(tokens) -> list[str]:
+    """Vendor-qualified class-code IDs (PCI\\VEN_1002&CC_0403): too broad
+    for a family, but the only IDs some INFs bind — AMD's HD Audio bus INF
+    amdafd.inf matches every AMD audio controller this way. A device reports
+    the same form among its compatible IDs, so infs.json keeps them for INFs
+    that have nothing more specific."""
+    return sorted({t.upper() for t in tokens if is_hwid(t) and _VENDOR_CLASS.match(t)})
+

@@ -18,6 +18,7 @@ import re
 import sqlite3
 
 from .. import db, versions
+from ..families import inf_hwids_by_name
 
 VENDOR = "silicon"
 BROWSER_HEADERS = True   # amd.com / intel.com want full browser identity
@@ -68,7 +69,103 @@ _DATE = re.compile(r"(\d{1,2})/(\d{1,2})/(\d{4})")
 def crawl(conn: sqlite3.Connection, client, run_date: str,
           *, limit: int | None = None, log=print) -> dict:
     pages = PAGES[:limit] if limit else PAGES
-    return _crawl_pages(conn, client, run_date, pages, log)
+    out = _crawl_pages(conn, client, run_date, pages, log)
+    _amd_chipset_components(conn, client, run_date, log)
+    return out
+
+
+# AMD's chipset release notes list every driver in the package with its
+# Windows 11 version; this maps those names to the INF each installs. The
+# package itself is a runtime-unpacked installer with no static INFs, so these
+# versions reach infs.json only this way. Extra HWIDs are for INFs no indexed
+# package carries (observed on real machines: the SMBIOS-reported instance IDs).
+_AMD_CHIPSET_RN = re.compile(
+    r'href="((?:https://www\.amd\.com)?/en/resources/support-articles/'
+    r'release-notes/RN-RYZEN-CHIPSET-[^"]+)"')
+AMD_CHIPSET_INFS: list[tuple[str, tuple[str, ...], tuple[str, ...]]] = [
+    (r"AMD PCI Device Driver", ("amdpcidev.inf",), ()),
+    (r"AMD I2C Driver", ("amdi2c.inf",), ()),
+    (r"AMD UART Driver", ("amduart.inf",), ()),
+    (r"AMD GPIO2 Driver", ("amdgpio2.inf",), ()),
+    (r"PT GPIO Driver", ("amdgpio3.inf",), ("ACPI\\AMDIF031",)),
+    (r"AMD PSP Driver", ("amdpsp.inf",), ()),
+    (r"AMD IOV Driver", ("amdiov.inf",), ()),
+    (r"AMD SMBUS Driver", ("smbusamd.inf",), ()),
+    (r"AMD SFH I2C Driver", ("amdsfhkmdfi2c.inf", "amdsfhspbi2c.inf"), ()),
+    (r"AMD SFH1\.1 Driver", ("amdsfhkmdf.inf", "amdsfhumdf.inf"), ()),
+    (r"AMD MicroPEP Driver", ("amdmicropep.inf",), ()),
+    (r"AMD Wireless Button Driver", ("amdwirelessbutton.inf",), ()),
+    (r"AMD Interface Driver", ("amdinterface.inf",), ()),
+    (r"AMD PPM Provisioning File Driver", ("amdppkg.inf",), ("ACPI\\AMDI0052",)),
+    (r"AMD 3D V-Cache Performance Optimizer", ("amd3dvcache.inf",), ("ACPI\\AMDI0101",)),
+    (r"AMD Application Compatibility Database", ("amdappcompat.inf",), ("ACPI\\AMDI0204",)),
+]
+
+
+def _rn_rows(body: str) -> list[list[str]]:
+    import html as _html
+    rows = []
+    for tr in re.findall(r"<tr.*?</tr>", body, re.S):
+        cells = [re.sub(r"\s+", " ", _html.unescape(re.sub(r"<[^>]+>", "", c))).strip()
+                 for c in re.findall(r"<t[dh][^>]*>(.*?)</t[dh]>", tr, re.S)]
+        rows.append(cells)
+    return rows
+
+
+def parse_chipset_rn(body: str) -> list[tuple[str, str, str, tuple[str, ...]]]:
+    """(component title, Windows 11 version, INF name, extra HWIDs) from the
+    release notes' driver table (header row: '', Windows 10, Windows 11, ...).
+    'Not Applicable' and unmapped components are skipped."""
+    out = []
+    win11 = None
+    for cells in _rn_rows(body):
+        if "Windows 11" in cells:
+            win11 = cells.index("Windows 11")
+            continue
+        if win11 is None or len(cells) <= win11 or not versions.parse(cells[win11]).tuple:
+            continue
+        for pattern, infs, extra in AMD_CHIPSET_INFS:
+            if re.match(pattern, cells[0], re.I):
+                out += [(cells[0], cells[win11], inf, extra) for inf in infs]
+                break
+    return out
+
+
+def _amd_chipset_components(conn, client, run_date, log) -> int:
+    snap = conn.execute("SELECT 1 FROM family WHERE name = 'AMD Chipset'").fetchone()
+    if not snap:
+        return 0
+    try:
+        page = client.get(next(u for f, u, _ in PAGES if f == "AMD Chipset"),
+                          snapshot="si_amd_chipset.html").content.decode("utf-8", "replace")
+        href = _AMD_CHIPSET_RN.search(page)
+        if not href:
+            log("  silicon: AMD chipset release-notes link not found")
+            return 0
+        url = href.group(1)
+        url = url if url.startswith("http") else "https://www.amd.com" + url
+        body = client.get(url, snapshot="si_amd_chipset_rn.html"
+                          ).content.decode("utf-8", "replace")
+    except Exception as exc:
+        log(f"  silicon: AMD chipset release notes failed — {str(exc)[:60]}")
+        return 0
+    # the article's JSON-LD carries its publish date
+    m = re.search(r'"datePublished"\s*:\s*"(\d{4}-\d{2}-\d{2})', body)
+    date = m.group(1) if m else None
+    n = 0
+    known = inf_hwids_by_name(conn)
+    for title, ver, inf, extra in parse_chipset_rn(body):
+        db.upsert_upstream_inf(
+            conn, run_date, source="amd-release-notes", inf_name=inf,
+            driver_ver=ver, published=date,
+            hwids=sorted(known.get(inf, set()) | set(extra)), title=title, url=url)
+        n += 1
+    pruned = db.prune_upstream_inf(conn, run_date, "amd-release-notes")
+    log(f"  silicon: AMD chipset components -> {n} INF versions"
+        + (f", pruned {pruned}" if pruned else ""))
+    if n == 0:
+        log("  silicon MISS AMD chipset components: table not parsed (layout changed?)")
+    return n
 
 
 _RN_HREF = re.compile(r'href="(/en/resources/support-articles/release-notes/'

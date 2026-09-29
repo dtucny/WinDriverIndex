@@ -21,7 +21,7 @@ import re
 import sqlite3
 from collections import defaultdict
 
-from .hwids import specific
+from .hwids import base as hwid_base, specific
 
 # (family name, silicon_vendor, component, [patterns])
 RULES: list[tuple[str, str, str, list[str]]] = [
@@ -588,6 +588,17 @@ def _inf_key(path: str, inf_sha256: str) -> str:
     as nameless stream files, so those fall back to their content hash."""
     name = re.split(r"[/\\!]", path)[-1].lower()
     return name if name.endswith(".inf") else inf_sha256
+
+
+def inf_hwids_by_name(conn) -> dict[str, set[str]]:
+    """Base device-specific HWIDs each INF file name binds, across every
+    indexed payload (for upstream INF versions, which carry no INF text)."""
+    out: dict[str, set[str]] = defaultdict(set)
+    for r in conn.execute("SELECT path, inf_sha256, hwids FROM inf WHERE hwids != '[]'"):
+        name = _inf_key(r[0], r[1])
+        if name.endswith(".inf"):
+            out[name].update(hwid_base(h) for h in specific(json.loads(r[2])))
+    return out
 
 
 def _anchor_owner(hwid: str) -> str | None:

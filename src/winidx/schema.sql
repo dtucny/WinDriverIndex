@@ -101,6 +101,24 @@ CREATE TABLE IF NOT EXISTS inf (
     PRIMARY KEY (payload_sha256, path)
 );
 
+-- INF-level versions known from upstream sources without a payload: the
+-- Windows Update Catalog (software components, queried by their SWC\ IDs)
+-- and AMD's chipset release notes (per-driver version table). No DriverVer
+-- date: `published` is the source's own date. One row per version, with the
+-- HWIDs it is newest for (OEM builds of one INF register different IDs).
+-- Merged into infs.json.
+CREATE TABLE IF NOT EXISTS upstream_inf (
+    source          TEXT NOT NULL,   -- 'wucatalog' | 'amd-release-notes'
+    inf_name        TEXT NOT NULL,   -- lower-case file name
+    driver_ver      TEXT NOT NULL,
+    published       TEXT,
+    hwids           TEXT NOT NULL DEFAULT '[]',   -- JSON array, base IDs
+    title           TEXT,
+    url             TEXT,
+    last_seen       TEXT NOT NULL,
+    PRIMARY KEY (source, inf_name, driver_ver)
+);
+
 -- Payloads 7-Zip could not open: corrupt at the vendor (hash matches what
 -- they publish), so retrying every run only re-fails. Rows are skipped by
 -- extract until `winidx extract --retry-quarantined` clears them.

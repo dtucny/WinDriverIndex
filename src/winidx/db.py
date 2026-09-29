@@ -97,6 +97,30 @@ def upsert_artefact(conn: sqlite3.Connection, run_date: str, *, vendor: str,
     return cur.lastrowid, True
 
 
+def upsert_upstream_inf(conn: sqlite3.Connection, run_date: str, *,
+                        source: str, inf_name: str, driver_ver: str,
+                        published: str | None, hwids: list[str],
+                        title: str | None = None, url: str | None = None) -> None:
+    """One row per (source, INF, version), carrying the HWIDs for which it is
+    that source's newest version."""
+    conn.execute(
+        """INSERT INTO upstream_inf (source, inf_name, driver_ver, published,
+                                     hwids, title, url, last_seen)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT (source, inf_name, driver_ver) DO UPDATE SET
+             published = excluded.published,
+             hwids = excluded.hwids, title = excluded.title, url = excluded.url,
+             last_seen = excluded.last_seen""",
+        (source, inf_name.lower(), driver_ver, published, json.dumps(sorted(hwids)),
+         title, url, run_date))
+
+
+def prune_upstream_inf(conn: sqlite3.Connection, run_date: str, source: str) -> int:
+    """Drop rows a source no longer reports (same rule as upstream artefacts)."""
+    return conn.execute("DELETE FROM upstream_inf WHERE source = ? AND last_seen < ?",
+                        (source, run_date)).rowcount
+
+
 def link_board_artefact(conn: sqlite3.Connection, run_date: str,
                         board_id: int, artefact_id: int,
                         listed_date: str | None) -> None:

@@ -46,6 +46,17 @@ file means no indexed family claims that ID.
   `driver_ver_aliases`: Realtek stamps some builds two ways
   (`10.080.50.0407` = `10.080.0407.2026`). `infs.json` HWIDs carry no
   SUBSYS/REV qualifiers; every device also reports that shorter form.
+  Rows also come from upstream sources with no vendor package (`sources`:
+  `vendor`, `wucatalog`, `amd-release-notes`). Windows Update updates
+  software components (Realtek service/HSA/APO, Nahimic, Intel DTT) on
+  their own, and AMD's chipset installer can't be unpacked, so these rows
+  carry versions no board vendor lists. Upstream-only rows have no
+  `artefact_ids` and no `driver_date`; `first_published` is the source's
+  date. Windows Update rows list only the IDs that version is newest for
+  (OEM builds of one INF register different IDs), so filter by the
+  device's ID before taking the newest. Some INFs bind only a
+  vendor-qualified class ID (`PCI\VEN_1002&CC_0403` for AMD's HD Audio bus);
+  a device reports that among its compatible IDs.
 - **Compare listings on their own line.** When a family's versions run on
   parallel numbering lines (AMD 25.x packaging vs 32.x INF), `water-level.json`
   `lines` gives the newest per major version; `parallel_to_water` marks lines

@@ -513,4 +513,20 @@ doc/upstream-requests.md).
   has `1.L2`. Lenovo Think catalogv2 strings mix forms (`1.36`,
   `M1UKT79A_1.0.0.121`, `BIOS1.63_EC1.34`, `(none)-1.12`,
   `R1FET65W(1.39)_R1PET45W(1.37)`).
+- Windows Update updates software-component INFs (SWC\ IDs) on their own,
+  so installed Realtek service/HSA/APO and Nahimic versions run ahead of
+  every board vendor's package. The Catalog search answers exact IDs only,
+  and OEM builds of one INF register different IDs (Nahimic
+  `a-volutenhapo4swc.inf`: AID_0002 has no builds, AID_0802 tops out at
+  4.15.4.0, AID_0302 at 5.0.9.0). Newest is therefore per ID. Only IDs
+  bound by exactly one INF file name are queried.
+- AMD's chipset release notes (RN-RYZEN-CHIPSET-*) carry a per-driver
+  version table (Windows 10 / Windows 11 columns) and a JSON-LD
+  `datePublished`. The package installer has no static INFs, so this is the
+  only source for those INF versions.
+- AMD's HD Audio bus INF `amdafd.inf` binds only `PCI\VEN_1002&CC_0403(00)`.
+  Crash Defender `amdfendr.inf` binds `ROOT\AMDLOG`, which the INF scan
+  regex doesn't include.
+- NVIDIA's lookup service lists releases the day they ship (617.14 on
+  2026-09-22, the same day as that refresh's crawl, which missed it).
 

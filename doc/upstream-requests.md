@@ -324,3 +324,73 @@ numbering. The fix is fetching Lenovo payloads. The pcsupport listing
 already carries each file's URL and SHA-256, so the crawler can do this.
 It is still scheduled for a later refresh.
 
+## "Newer than the index": three causes, two fixed in the data
+
+WILLOW and MAHOGANY exports, 2026-09-29: 14 INFs installed above the index's
+newest `infs.json` row.
+
+- **Stale index (NVIDIA `nvlti.inf` 32.0.16.1714 = 617.14).** NVIDIA
+  released 617.14 on 2026-09-22, the day of the last crawl. The refresh
+  picks it up.
+- **Windows Update components (Realtek `realtekservice.inf`, `realtekhsa.inf`,
+  `realtekusbapo.inf`; Nahimic `a-volutenhapo4swc.inf`).** Windows Update
+  updates software components on their own, ahead of any board vendor's
+  package. `infs.json` now has Windows Update Catalog rows for them
+  (`sources: ["wucatalog"]`). Several of these machines were in fact
+  **behind**: MAHOGANY's Realtek service 1.0.1026.0 against 1.0.1033.0,
+  WILLOW's Nahimic 4.11.4.0 against 4.15.4.0 for its ID
+  (`SWC\VEN_AVOL&AID_0802`). One Nahimic INF has OEM builds up to 5.0.9.0
+  under other IDs, so filter by the device's ID before taking the newest.
+- **AMD chipset components (`amdgpio2`, `amdi2c`, `amdpsp`, `amdinterface`).**
+  AMD's chipset installer unpacks at run time, so no INF could be read from
+  it, and `infs.json` had only what board vendors repackage. AMD's release
+  notes list every component's Windows 11 version; those rows are now in
+  `infs.json` (`sources: ["amd-release-notes"]`). WILLOW's versions are
+  exactly AMD's 8.08.12.551 set.
+- **AMD graphics components (`u*.inf`, `amdocl`, `amdogl`, `amdvlk`,
+  `amdwin-u*`) at 32.0.31041.1004.** That is the family water:
+  AMD's own Adrenalin 26.9.1, which the index knows only as a version, not
+  as INFs. No board vendor has shipped it yet. When the installed version
+  equals `family_newest` and the family's version is in the INF scheme
+  (AMD Graphics is, via the release notes' Driver Store version), report
+  current rather than newer.
+
+## "Not in the index": mostly out of scope; a few fixed
+
+Of 270 (WILLOW) and 287 (MAHOGANY) unindexed devices, 229 and 257 run
+Microsoft inbox drivers. Most of the rest are outside a board index:
+VPN/virtual adapters (OpenVPN, Tailscale, ZeroTier), printers, Logitech,
+RØDE, Blackmagic, Xbox, NVIDIA Broadcast, monitor INFs, Bluetooth headsets.
+
+Handled now:
+- **AMD chipset extras** `amdppkg.inf`, `amd3dvcache.inf`,
+  `amdappcompat.inf`, `amdgpio3.inf` (PT GPIO): from the AMD release notes
+  (above). MAHOGANY's `amdppkg.inf` 8.0.0.61 is behind 8.0.0.65.
+- **AMD HD Audio bus `amdafd.inf`**: indexed, but it binds only
+  vendor-qualified class IDs (`PCI\VEN_1002&CC_0403`), which the #4 filter
+  dropped. `infs.json` keeps them for INFs with nothing more specific.
+  Match on the device's compatible IDs.
+
+Not handled:
+- **Lenovo components** (`acpivpc`, `lenovofnandfunctionkeys`, `imdriver`,
+  `udc*`, `fbnetfilter`), Fortemedia, Nahimic VADs, and the Lenovo camera and
+  fingerprint drivers: Lenovo payloads are not fetched (#9).
+- **AMD Crash Defender `amdfendr.inf`**: it binds a root-enumerated ID
+  (`ROOT\AMDLOG`), which the INF scan doesn't collect. It ships inside the
+  AMD graphics package and tracks its version.
+- **MSI `msiswacpi.inf`**: MSI ships it in its utility installers, not a
+  driver package.
+
+Peripherals are outside what a board index can enumerate: it has no list
+of their IDs. Windows Update has about half of the ones on these two
+machines. The SunplusIT camera is behind (5.0.18.203 installed,
+5.0.18.269 on the Catalog). Logitech's G HUB driver is ahead of Windows
+Update. The fingerprint readers and monitors have no Catalog entry. For
+these, ask Windows Update from the client:
+- **Windows Update Agent** (`Microsoft.Update.Session`, search
+  `Type='Driver' and IsInstalled=0`): the drivers offered to this machine,
+  with its hardware-ID and machine targeting applied. This is the
+  authoritative answer for anything Windows Update supplies.
+- **Catalog search by hardware ID** as a fallback: public and cheap, but it
+  lists every OEM's build of an ID, not the one this machine would get.
+

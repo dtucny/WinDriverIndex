@@ -22,9 +22,10 @@ from __future__ import annotations
 import json
 import re
 import sqlite3
-from collections import Counter
+from collections import Counter, defaultdict
 
 from .. import db, versions
+from ..families import inf_hwids_by_name
 
 VENDOR = "wucatalog"
 SEARCH = "https://www.catalog.update.microsoft.com/Search.aspx"
@@ -145,6 +146,7 @@ def crawl(conn: sqlite3.Connection, client, run_date: str,
         n_new += is_new
         log(f"  wu: {fam['name'][:30]:30} -> {best['version']} ({best['date']})")
         conn.commit()
+    n_comp = _crawl_components(conn, client, run_date, log)
     # A family that produced no acceptable row this run must not keep last
     # cycle's upstream version (Intel ME carried a Wi-Fi 24.40.0.4 for weeks).
     # Upstream rows have no board links, so pruning them is safe.
@@ -154,8 +156,57 @@ def crawl(conn: sqlite3.Connection, client, run_date: str,
     conn.commit()
     if stale:
         log(f"wucatalog: pruned {stale} stale upstream rows")
-    log(f"wucatalog: {n_fam} families matched, {n_new} new, {n_queries} queries")
+    log(f"wucatalog: {n_fam} families matched, {n_new} new, {n_queries} queries,"
+        f" {n_comp} component INF versions")
     return {"boards": 0, "listings": n_fam, "new_artefacts": n_new}
+
+
+def _crawl_components(conn, client, run_date, log) -> int:
+    """INF-level versions for software components (SWC\\ IDs: Realtek's
+    service/HSA/APO INFs, Nahimic, Intel DTT UI...). Windows Update updates
+    these on their own, ahead of every vendor package, so a machine can look
+    'newer than the index'. One query per INF, by an SWC ID that INF alone
+    binds — a shared ID could return another INF's builds. The Catalog
+    answers exact IDs only and OEM builds register different ones (Nahimic:
+    AID_0002 has none, AID_0802 has 4.15.4.0), so every such ID is queried."""
+    by_inf = inf_hwids_by_name(conn)
+    owners: dict[str, set[str]] = defaultdict(set)
+    for inf, ids in by_inf.items():
+        for h in ids:
+            if h.upper().startswith("SWC\\"):
+                owners[h.upper()].add(inf)
+    n = 0
+    for inf in sorted(by_inf):
+        mine = sorted(h for h, infs in owners.items() if infs == {inf})
+        if not mine:
+            continue
+        newest: dict[str, dict] = {}     # hwid -> its newest Catalog row
+        for hwid in mine:
+            snap = "wu_" + re.sub(r"[^A-Za-z0-9]+", "_", hwid) + ".html"
+            try:
+                resp = client.get(SEARCH, params={"q": hwid}, snapshot=snap)
+            except Exception as exc:
+                log(f"  wu: component {inf} query failed — {str(exc)[:60]}")
+                continue
+            rows = _parse_rows(resp.content.decode("utf-8", "replace"), hwid)
+            if rows:
+                newest[hwid] = max(rows, key=lambda r: (
+                    versions.compare_key(versions.parse(r["version"])), r["date"]))
+        by_ver: dict[str, list[dict]] = defaultdict(list)
+        for row in newest.values():
+            by_ver[row["version"]].append(row)
+        for ver, rows in by_ver.items():
+            first = min(rows, key=lambda r: r["hwid"])
+            db.upsert_upstream_inf(
+                conn, run_date, source="wucatalog", inf_name=inf,
+                driver_ver=ver, published=max(r["date"] for r in rows),
+                hwids=[r["hwid"] for r in rows], title=first["title"][:200],
+                url=SEARCH + "?q=" + first["hwid"].replace("\\", "%5C").replace("&", "%26"))
+            n += 1
+    pruned = db.prune_upstream_inf(conn, run_date, "wucatalog")
+    if pruned:
+        log(f"wucatalog: pruned {pruned} stale component INF rows")
+    return n
 
 
 def _representative_prefixes(hwids: list[str], silicon_vendor: str,

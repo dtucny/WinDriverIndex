@@ -6,7 +6,7 @@ to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html). The
 published data schema is versioned separately (see `schema_version` in every
 `public/v1/*.json` file).
 
-### Data schema 2.0.0 (unreleased) — consumer feedback from a driver-checker app
+### Data schema 2.0.0 — consumer feedback from a driver-checker app (live 2026-09-28)
 
 Breaking:
 - `by-hwid/{hwid}.json` lists **every** family the HWID identifies
@@ -50,7 +50,7 @@ Added:
   in the new `board.smbios` column.
 - `manifest.json`: size and sha256 of every aggregate file.
 
-### Data 2.0.x — second round of consumer feedback (unreleased)
+### Data 2.0.x — second round of consumer feedback (live 2026-09-28)
 
 - `infs.json` rows gain `inf_series` (AMD's per-release display INF names
   collapse to `u*.inf` / `amdwin-u*.inf`) and `driver_ver_aliases`: Realtek's
@@ -66,7 +66,9 @@ Added:
   the device's family. Year-numbered MediaTek builds never set those
   families' water and are always a parallel line.
 
-### Data 2.0.x — third round of consumer feedback (unreleased)
+### Data 2.0.x — third round of consumer feedback
+
+Live 2026-09-29:
 
 - `by-board` `bios` gains `last_bios_version` (the newest stable BIOS's
   version string, e.g. `M3CN50WW`, `7D73v1L3`) and `last_bios_version_date`,
@@ -77,13 +79,58 @@ Added:
 - BIOS stats and versions ignore ASUS/ASRock "Intel ME" and "Firmware"
   rows (ME update tools, audio/USB firmware listed beside the BIOS). Three
   ASUS boards with only such rows drop out of `boards_with_bios`.
+Not yet deployed:
 
-### Added (unreleased)
+- `infs.json` gains upstream INF versions and a `sources` field. Windows
+  Update Catalog rows for software-component INFs (queried by each INF's
+  own `SWC\` IDs; one row per version, listing the IDs it is newest for),
+  and AMD chipset component versions from AMD's release notes (GPIO, I2C,
+  PSP, Interface, SMBus, PPM provisioning, 3D V-Cache and others). A client
+  saw these as "newer than the index" on two real machines.
+- `infs.json` keeps vendor-qualified class IDs (`PCI\VEN_1002&CC_0403`) for
+  INFs that bind nothing more specific, such as AMD's `amdafd.inf`.
 
+### Refreshes and site, 2026-09-02 to 2026-09-24
+
+Added:
 - The landing page shows what the latest data refresh changed: water-level
   moves (family, old → new, via, dated) and newly indexed machines, diffed
   by publish against the previously published state. A refresh that changes
-  nothing keeps the last meaningful delta on display.
+  nothing keeps the last meaningful delta on display. Moves carry a
+  direction; downward moves (reclassification by new INF evidence, or a
+  vendor respelling like Dell's IPF `2.3.20306.4001` = `2.3.20306.4`) show
+  as ▽ with a footnote.
+- `tools/check_index_page.sh` executes the landing page's script against
+  the real `dashboard.json` with a stub DOM (`node --check` had passed a
+  render block stuck inside an error handler, which hid "What changed").
+- Best/worst per vendor is split by product type, with a 5-board cohort
+  floor, so a GPU no longer sits beside a motherboard.
+- Licensing: code under MIT (`LICENSE`), published data under CC BY 4.0
+  (`LICENSE-DATA`); every published JSON file carries
+  `"license": "CC-BY-4.0"`.
+- Payloads that are corrupt at the vendor (the hash matches what the
+  vendor publishes) are quarantined in `payload_quarantine`; `extract`
+  skips them, `extract --retry-quarantined` retries, and exit 1 is kept for
+  failures outnumbering successes.
+- Dependabot for `uv.lock` (weekly; camoufox and playwright grouped).
+- Newly indexed machines are named with the vendor's brand prefix.
+
+Fixed:
+- Product types: Dell XPS Desktops are desktops (name-level words override
+  the brand), Dell Inspiron/Vostro/Alienware form factor comes from
+  CatalogIndexPC prefixes (INS/INSDT, VOSNB/VOSDT, ANWNB/ANWDT), and HP
+  tablets and detachables are laptops.
+- One sha256 published under two URLs in two families (ASRock's Realtek
+  Audio page carrying the SATA floppy hash) no longer lends INF evidence to
+  the wrong artefact.
+- Windows Update Catalog: USB vendor IDs (Intel `8087`, Realtek `0BDA`) are
+  recognised, Bluetooth families query USB IDs only, rows whose title class
+  doesn't fit the family are rejected, and stale upstream rows are pruned.
+- ASRock: solved pg.asrock.com pages embed Incapsula's sensor loader and
+  were mistaken for a challenge, skipping the host for two refreshes.
+- Bundle whitelist additions for genuine multi-driver packages (chipset INF
+  utilities with IPF/DTT/PMT/HID, OEM Realtek HDA with Intel GNA/SST, AMD
+  graphics preinstalls with RAID bottom drivers).
 
 ## [Unreleased]
 
