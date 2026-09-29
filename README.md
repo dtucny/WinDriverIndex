@@ -65,6 +65,9 @@ file means no indexed family claims that ID.
   always parallel to its 1.x/3.x/5.x line). `families.json` `version_equiv`
   gives a family's translation rule into its canonical scheme (a regex with
   `$1`-style replacement, `flags` apart), e.g. NVIDIA `32.0.15.9186` = `591.86`.
+  A water version with fewer parts than the installed one is a prefix: Realtek's
+  own download page gives `11.031.50` without the build number, so the
+  Realtek LAN water is `1125.31.50`, and any installed `1125.31.50.x` is at it.
 - **Match machines by SMBIOS**, where `boards.json` has `smbios` keys:
   `system_sku` (Dell; SMBIOS SKU Number, exact), `baseboard_product` (HP
   platform ID; baseboard product, exact), `system_product_prefix` (Lenovo

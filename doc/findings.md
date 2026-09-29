@@ -540,4 +540,13 @@ doc/upstream-requests.md).
 - Upstream pruning keys on `last_seen < run_date`, so a same-day re-run
   keeps rows an earlier run wrote. After changing wucatalog family rules
   mid-day, delete the affected rows by hand.
+- Realtek download centre (realtek.com/Download/List?cate_id=N): 584 = PCIe
+  Ethernet (Win11 NetAdapterCx `11.031.50` + NDIS `10.80.50`), 585 = USB
+  Ethernet (`115X.23.20`), 593 = legacy HD Audio R2.83 (non-DCH, 2024; the
+  page tells users to get codec drivers from the OEM), 590 = card reader
+  (10.0.26100.21378, older than Dell's), 660–675 = 2017–2019 Wi-Fi. Pages
+  answer a plain browser UA. Downloads go through SubmitDownloadRequest ->
+  token -> /Download/Captcha: CAPTCHA-gated, so metadata only. The
+  NetAdapterCx package number maps to per-chip INF prefixes
+  (11.031 -> 1125.31 / 1126.31 / 1127.31 / 1168.31).
 

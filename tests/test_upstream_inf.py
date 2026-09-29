@@ -48,3 +48,13 @@ def test_merge_upstream_infs(tmp_path):
     assert new["family_ids"] == {7} and new["class"] == "SoftwareComponent"
     assert new["first_published"] == "2026-08-17"
     assert json.dumps(sorted(new["hwids"])) == '["SWC\\\\VEN_10EC&SID_0001"]'
+
+
+def test_parse_realtek_lan_picks_power_saving_netadaptercx():
+    from winidx.vendors.silicon import parse_realtek_lan
+    body = """<table>
+<tr><td><a href="x"></a></td><td>Win10/Win11 Auto Installation Program (NDIS)</td><td>10.80.50</td><td>2026/08/28</td><td>5 MB</td></tr>
+<tr><td><a href="x"></a></td><td>Win11 Auto Installation Program (NetAdapterCx)</td><td>11.031.50</td><td>2026/08/28</td><td>3 MB</td></tr>
+<tr><td><a href="x"></a></td><td>Win11 Auto Installation Program (NetAdapterCx) - Not Support Power Saving</td><td>11.031.20</td><td>2026/08/28</td><td>3 MB</td></tr>
+</table>"""
+    assert parse_realtek_lan(body) == ("11.031.50", "2026-08-28")

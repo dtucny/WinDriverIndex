@@ -412,3 +412,14 @@ these, ask Windows Update from the client:
   `wucatalog`: they are builds Windows Update ships to some OEM's machines,
   not necessarily this one. Label them as such ("newer build exists, another
   OEM, via Windows Update").
+
+## Realtek LAN water from Realtek itself (2026-09-29)
+
+Realtek 8168/8125/8126 LAN water now comes from Realtek's own download
+page: `1168.31.50` / `1125.31.50` / `1126.31.50` (NetAdapterCx package
+`11.031.50`, 2026-08-28). No board vendor ships build 31 yet
+(`upstream_only`). The page omits the build number, so treat a shorter
+water version as a prefix: an installed `1125.31.50.x` is current, not
+newer. The files are CAPTCHA-gated, so there are no `infs.json` rows for
+them.
+

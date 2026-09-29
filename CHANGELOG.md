@@ -8,6 +8,16 @@ published data schema is versioned separately (see `schema_version` in every
 
 ## [Unreleased]
 
+### Added
+
+- Realtek's own PCIe Ethernet download page as an upstream source. Its
+  Windows 11 NetAdapterCx package (`11.031.50`, 2026-08-28) sets the water
+  for Realtek 8168/8125/8126 LAN as `1168.31.50` / `1125.31.50` /
+  `1126.31.50`, each chip's own prefix. The page omits the build number, so
+  these are version prefixes; they never become `infs.json` rows. Realtek's
+  other pages add nothing current (legacy HDA audio R2.83, 2017-era Wi-Fi,
+  a card reader driver older than Dell's).
+
 ## [0.2.0] — 2026-09-29
 
 Seven vendors (ASUS, ASRock, Gigabyte, MSI, Lenovo, Dell, HP) plus

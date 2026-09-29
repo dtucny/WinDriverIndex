@@ -71,6 +71,7 @@ def crawl(conn: sqlite3.Connection, client, run_date: str,
     pages = PAGES[:limit] if limit else PAGES
     out = _crawl_pages(conn, client, run_date, pages, log)
     _amd_chipset_components(conn, client, run_date, log)
+    _realtek_lan(conn, client, run_date, log)
     return out
 
 
@@ -110,6 +111,68 @@ def _rn_rows(body: str) -> list[list[str]]:
                  for c in re.findall(r"<t[dh][^>]*>(.*?)</t[dh]>", tr, re.S)]
         rows.append(cells)
     return rows
+
+
+# Realtek's own PCIe Ethernet page lists its retail Windows 11 NetAdapterCx
+# package as '11.031.50'. Each chip's INF in that package carries the chip's
+# prefix instead of 11 (rt25cx21: 1125.31.50.x, rt68cx21: 1168.31.50.x; Windows
+# Update's 8127 build is 1127.31.50.603), which is the scheme the family water
+# uses, so the page gives each family 'prefix.31.50'. The build (fourth) part
+# isn't shown and the files sit behind a CAPTCHA, so this is a version prefix,
+# never an infs.json row. The NDIS package (10.80.50, rt640x64.inf) likewise
+# lacks its build and is not recorded.
+REALTEK_LAN_URL = "https://www.realtek.com/Download/List?cate_id=584"
+REALTEK_LAN_FAMILIES = {"Realtek 8168 LAN": "1168", "Realtek 8125 LAN": "1125",
+                        "Realtek 8126 LAN": "1126"}
+_RTK_NETADAPTER = re.compile(r"^Win11 Auto Installation Program \(NetAdapterCx\)$")
+
+
+def parse_realtek_lan(body: str) -> tuple[str, str] | None:
+    """(package version, ISO date) of the Win11 NetAdapterCx package with
+    power saving (the '- Not Support Power Saving' build is a variant)."""
+    for cells in _rn_rows(body):
+        cells = [c for c in cells if c]
+        if len(cells) >= 3 and _RTK_NETADAPTER.match(cells[0]) \
+                and re.fullmatch(r"\d+\.\d+\.\d+", cells[1]):
+            m = re.fullmatch(r"(\d{4})/(\d{2})/(\d{2})", cells[2])
+            return cells[1], (f"{m.group(1)}-{m.group(2)}-{m.group(3)}" if m else None)
+    return None
+
+
+def _realtek_lan(conn, client, run_date, log) -> int:
+    try:
+        body = client.get(REALTEK_LAN_URL, snapshot="si_realtek_lan.html"
+                          ).content.decode("utf-8", "replace")
+    except Exception as exc:
+        log(f"  silicon MISS Realtek LAN: fetch failed — {str(exc)[:80]}")
+        return 0
+    found = parse_realtek_lan(body)
+    if not found:
+        log("  silicon MISS Realtek LAN: NetAdapterCx row not found (layout changed?)")
+        return 0
+    pkg, date = found
+    major, minor, rev = pkg.split(".")
+    if major != "11":
+        log(f"  silicon MISS Realtek LAN: unexpected package scheme {pkg}")
+        return 0
+    n = 0
+    for family, prefix in REALTEK_LAN_FAMILIES.items():
+        fam = conn.execute("SELECT family_id FROM family WHERE name = ?",
+                           (family,)).fetchone()
+        if not fam:
+            continue
+        ver = f"{prefix}.{int(minor)}.{int(rev)}"
+        db.upsert_artefact(
+            conn, run_date, vendor=VENDOR, vendor_artefact_id=family,
+            kind="driver", family_id=fam["family_id"], source_type="upstream",
+            version_raw=ver, version_normalised=versions.parse(ver).normalised_json,
+            release_date=date, os_raw="Win11 64",
+            description_text=f"Realtek NetAdapterCx {pkg} — Silicon-vendor download page",
+            url=REALTEK_LAN_URL)
+        n += 1
+        log(f"  silicon: {family:20} -> {ver} ({date or 'no date'})")
+    conn.commit()
+    return n
 
 
 def parse_chipset_rn(body: str) -> list[tuple[str, str, str, tuple[str, ...]]]:
