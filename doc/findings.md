@@ -550,3 +550,19 @@ doc/upstream-requests.md).
   NetAdapterCx package number maps to per-chip INF prefixes
   (11.031 -> 1125.31 / 1126.31 / 1127.31 / 1168.31).
 
+## 2026-10-23 — fifth full refresh
+
+- ASUS retired `support/api/product.asmx/GetPDBIOS`: HTTP 200 with
+  `{"Result":null,"Status":"FAIL"}` for every pdid. `support/webapi/
+  ProductV2/GetPDBIOS` (same params) returns the same Files entries with a
+  relative `DownloadUrl.Global`, and more history (5,541 BIOS images from
+  2019–2024 not listed before; no hash or URL overlap with existing rows).
+- Microsoft Update Catalog now rate-limits search: after ~15 queries at
+  1.5 s it serves a normal 200 page saying "Too many search requests.
+  Please wait a few minutes and try again." At 5 s spacing a 400-query run
+  hit it once and cleared after a 90 s + 180 s backoff.
+- Intel Chipset INF device IDs return unrelated Intel "System" driver
+  updates on the Catalog (2622.10.2.0); the family is now WU-blocklisted.
+- Run: crawls 16:24–17:29 (all first try), fetch 76 min (502 payloads),
+  extract 3 min; 1,248 new artefacts before the ASUS BIOS re-crawl.
+

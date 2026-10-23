@@ -21,7 +21,9 @@ VENDOR = "asus"
 
 API = "https://www.asus.com/support/api/product.asmx"
 DRIVERS_API = "https://www.asus.com/support/webapi/ProductV2/GetPDDrivers"
-BIOS_API = "https://www.asus.com/support/api/product.asmx/GetPDBIOS"
+# product.asmx/GetPDBIOS answered {"Status":"FAIL"} for every product from
+# 2026-10; ProductV2 serves the same file list (DownloadUrl now relative)
+BIOS_API = "https://www.asus.com/support/webapi/ProductV2/GetPDBIOS"
 CDN = "https://dlcdnets.asus.com"
 WEBSITE = "ph"          # region; content believed region-identical (spec §4.4)
 MB_TYPEID = 1156        # motherboards
@@ -45,6 +47,7 @@ def crawl(conn: sqlite3.Connection, client: PoliteClient, run_date: str,
         in_scope = in_scope[:limit]
 
     n_boards = n_artefacts = n_new = 0
+    bios_fail = 0
     for product, chipset, socket in in_scope:
         pdid = product["PDId"]
         board_id = db.upsert_board(
@@ -77,6 +80,7 @@ def crawl(conn: sqlite3.Connection, client: PoliteClient, run_date: str,
         except Exception as exc:
             log(f"  asus: BIOS skipped {product['PDName']}: {str(exc)[:60]}")
             bios = {}
+        bios_fail += bios.get("Status") == "FAIL"
         for category, entry in _iter_files(bios):
             recorded = _record_artefact(conn, run_date, board_id, entry,
                                         category, kind_override="bios")
@@ -131,6 +135,10 @@ def crawl(conn: sqlite3.Connection, client: PoliteClient, run_date: str,
                 n_new += recorded
         conn.commit()
     log(f"asus: {n_boards} boards, {n_artefacts} listings, {n_new} new artefacts")
+    if n_boards and bios_fail * 2 > n_boards:
+        # a dead endpoint answers 200 + "FAIL": without this the run looked
+        # clean while every BIOS listing silently went stale
+        raise RuntimeError(f"asus: BIOS API failed for {bios_fail}/{n_boards} boards")
     return {"boards": n_boards, "listings": n_artefacts, "new_artefacts": n_new}
 
 

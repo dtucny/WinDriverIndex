@@ -319,6 +319,9 @@ BUNDLE_OK: set[frozenset] = {
         ("Realtek Audio", "Intel GNA"),
         ("Realtek Audio", "Intel Chipset INF"),
         ("Intel DTT", "Intel IPF"),
+        # Dell's "Intel Software Integrated Package" builds that INF evidence
+        # files under DTT (GWCH8 26.28.7.1) carry HidEventFilter.inf too
+        ("Intel DTT", "Intel HID Event Filter"),
         ("Killer LAN", "Intel Wi-Fi"),
         ("Killer LAN", "Intel I225/I226 LAN"),
         ("Killer Suite", "Intel Wi-Fi"),
@@ -333,6 +336,11 @@ BUNDLE_OK: set[frozenset] = {
         ("Killer Bluetooth", "Intel Bluetooth"),
         ("MediaTek LE Audio", "MediaTek Bluetooth (Wi-Fi 7)"),
         ("MediaTek LE Audio", "MediaTek Bluetooth (Wi-Fi 6E)"),
+        # mtkbtacx.inf (Bluetooth audio class extension, SWC\VEN_0E8D&SID_0001)
+        # ships in every MediaTek Bluetooth package, 6E and Wi-Fi 7 alike
+        ("MediaTek Bluetooth (Wi-Fi 6E)", "MediaTek Bluetooth (Wi-Fi 7)"),
+        ("MediaTek Bluetooth", "MediaTek Bluetooth (Wi-Fi 6E)"),
+        ("MediaTek Bluetooth", "MediaTek Bluetooth (Wi-Fi 7)"),
         # Intel PROSet-style LAN packages carry INFs for every Intel NIC, so
         # the generic family legitimately shares INFs with the per-silicon ones.
         ("Intel LAN", "Intel I211 LAN"),

@@ -58,3 +58,26 @@ def test_parse_realtek_lan_picks_power_saving_netadaptercx():
 <tr><td><a href="x"></a></td><td>Win11 Auto Installation Program (NetAdapterCx) - Not Support Power Saving</td><td>11.031.20</td><td>2026/08/28</td><td>3 MB</td></tr>
 </table>"""
     assert parse_realtek_lan(body) == ("11.031.50", "2026-08-28")
+
+
+def test_catalog_throttle_retries_and_never_returns_refusal(monkeypatch, tmp_path):
+    import pytest
+    from winidx.vendors import wucatalog as w
+    monkeypatch.setattr(w, "THROTTLE_BACKOFF", (0, 0))
+    monkeypatch.setattr(w.time, "sleep", lambda s: None)
+
+    class Resp:
+        def __init__(self, text): self.content = text.encode()
+
+    class Client:
+        snapshot_dir = tmp_path
+        def __init__(self, bodies): self.bodies = list(bodies)
+        def get(self, url, params=None, snapshot=None):
+            (tmp_path / snapshot).write_text(self.bodies[0])
+            return Resp(self.bodies.pop(0))
+
+    refusal = "<p>Too many search requests. Please wait a few minutes</p>"
+    assert w._search(Client([refusal, "<table>ok</table>"]), "PCI\\VEN_1") == "<table>ok</table>"
+    with pytest.raises(w.CatalogThrottled):
+        w._search(Client([refusal] * 3), "PCI\\VEN_2")
+    assert not (tmp_path / "wu_PCI_VEN_2.html").exists()   # refusal not kept

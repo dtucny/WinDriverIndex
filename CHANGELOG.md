@@ -8,6 +8,23 @@ published data schema is versioned separately (see `schema_version` in every
 
 ## [Unreleased]
 
+### Fixed
+
+- ASUS BIOS listings: `product.asmx/GetPDBIOS` started answering
+  `{"Status":"FAIL"}` for every product, so a refresh silently saw no ASUS
+  BIOS. The crawler now uses `webapi/ProductV2/GetPDBIOS` (same file list,
+  plus ~5,500 older BIOS images the old endpoint never listed) and fails the
+  run when most BIOS lookups fail.
+- Windows Update Catalog rate limiting ("Too many search requests" after
+  ~15 searches) read as "no results" and pruned 97 upstream rows. Searches
+  now go 5 s apart, back off and retry on the throttle page, never keep it
+  as a snapshot, and abort without pruning if throttling persists.
+- Intel Chipset INF is no longer queried on Windows Update: its device IDs
+  are shared with other Intel "System" drivers (a 2622.10.2.0 build became
+  its water). Intel's own page remains its upstream source.
+- Bundle whitelist: Intel DTT + HID Event Filter (Dell integrated
+  packages), and the MediaTek Bluetooth families (`mtkbtacx.inf` ships in all).
+
 ## [0.3.0] — 2026-09-29
 
 ### Added

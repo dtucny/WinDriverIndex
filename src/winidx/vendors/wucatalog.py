@@ -22,9 +22,11 @@ from __future__ import annotations
 import json
 import re
 import sqlite3
+import time
 from collections import Counter, defaultdict
 
 from .. import db, versions
+from ..http import PoliteClient
 from ..families import SUBFAMILIES, hwid_support, inf_hwids_by_name
 
 VENDOR = "wucatalog"
@@ -60,7 +62,11 @@ _VEN_IDS = {
 BLOCKLIST = {"Killer LAN", "Killer Wi-Fi", "Killer Bluetooth", "Killer Suite",
              # several silicon vendors' schemes in one family (Senary 6.x,
              # Cirrus 20.x): a Catalog max across them means nothing
-             "Laptop OEM Audio"}
+             "Laptop OEM Audio",
+             # the chipset INF only names devices; its IDs are the same ones
+             # other Intel "System" drivers bind (2026-10: a 2622.10.2.0 build
+             # became the water). Intel's own page is the source of truth.
+             "Intel Chipset INF"}
 # families whose anchors are exactly their chips: query only those. MediaTek's
 # anchors are a subset of its chips (DEV_7920 alone carries 6E's newest), so
 # it keeps every owned id.
@@ -96,6 +102,42 @@ def _class_ok(title: str, component: str | None) -> bool:
         return True
     word = m.group(1).lower()
     return word not in _KNOWN_CLASSES or word in allowed
+
+
+# The Catalog started rate-limiting in 2026-10: after ~15 searches at 1.5 s
+# spacing it answers "Too many search requests" with an ordinary 200 page and
+# no rows, which read as "no results" — and then pruned every upstream row.
+_THROTTLED = "Too many search requests"
+THROTTLE_BACKOFF = (90, 180, 360, 600)
+
+
+class CatalogThrottled(RuntimeError):
+    """The Catalog kept refusing searches; the run must not prune anything."""
+
+
+def make_client(run_date: str) -> PoliteClient:
+    return PoliteClient(VENDOR, run_date, min_interval=5.0)
+
+
+def _search(client, query: str, log=print) -> str:
+    """Catalog search page for `query`, retrying through rate limiting. A
+    throttle page is never kept as the run's snapshot (snapshots are reused
+    by same-day re-runs, which would replay the refusal)."""
+    snap = "wu_" + re.sub(r"[^A-Za-z0-9]+", "_", query) + ".html"
+    path = getattr(client, "snapshot_dir", None)
+    path = path / snap if path is not None else None
+    for wait in (*THROTTLE_BACKOFF, None):
+        body = client.get(SEARCH, params={"q": query}, snapshot=snap
+                          ).content.decode("utf-8", "replace")
+        if _THROTTLED not in body:
+            return body
+        if path is not None:
+            path.unlink(missing_ok=True)
+        if wait is None:
+            break
+        log(f"  wu: Catalog rate limit at {query} — waiting {wait}s")
+        time.sleep(wait)
+    raise CatalogThrottled(f"Catalog still rate-limiting after backoff ({query})")
 
 
 def crawl(conn: sqlite3.Connection, client, run_date: str,
@@ -141,9 +183,7 @@ def crawl(conn: sqlite3.Connection, client, run_date: str,
         found = []
         for prefix in prefixes:
             n_queries += 1
-            snap = "wu_" + re.sub(r"[^A-Za-z0-9]+", "_", prefix) + ".html"
-            resp = client.get(SEARCH, params={"q": prefix}, snapshot=snap)
-            rows = _parse_rows(resp.content.decode("utf-8", "replace"), prefix)
+            rows = _parse_rows(_search(client, prefix, log), prefix)
             kept = [r for r in rows if _class_ok(r["title"], fam["component"])]
             if len(kept) < len(rows):
                 log(f"  wu: {fam['name'][:30]:30} dropped {len(rows) - len(kept)}"
@@ -206,13 +246,14 @@ def _crawl_components(conn, client, run_date, log) -> int:
             continue
         newest: dict[str, dict] = {}     # hwid -> its newest Catalog row
         for hwid in mine:
-            snap = "wu_" + re.sub(r"[^A-Za-z0-9]+", "_", hwid) + ".html"
             try:
-                resp = client.get(SEARCH, params={"q": hwid}, snapshot=snap)
+                body = _search(client, hwid, log)
+            except CatalogThrottled:
+                raise
             except Exception as exc:
                 log(f"  wu: component {inf} query failed — {str(exc)[:60]}")
                 continue
-            rows = _parse_rows(resp.content.decode("utf-8", "replace"), hwid)
+            rows = _parse_rows(body, hwid)
             if rows:
                 newest[hwid] = max(rows, key=lambda r: (
                     versions.compare_key(versions.parse(r["version"])), r["date"]))
