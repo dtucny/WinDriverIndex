@@ -8,6 +8,8 @@ published data schema is versioned separately (see `schema_version` in every
 
 ## [Unreleased]
 
+## [0.3.1] — 2026-10-23
+
 ### Fixed
 
 - ASUS BIOS listings: `product.asmx/GetPDBIOS` started answering
@@ -423,7 +425,8 @@ First working end-to-end pipeline across all four in-scope vendors.
   "BlueTooth Driver" entries resolve only via INF evidence.
 - Laptops, GPUs, and pre-AM4/pre-12th-gen hardware are out of scope for v1.
 
-[Unreleased]: https://github.com/dtucny/WinDriverIndex/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/dtucny/WinDriverIndex/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/dtucny/WinDriverIndex/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/dtucny/WinDriverIndex/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/dtucny/WinDriverIndex/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/dtucny/WinDriverIndex/releases/tag/v0.1.0
