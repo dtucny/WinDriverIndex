@@ -31,6 +31,12 @@ def payload_path(sha256: str, ext: str = ".zip") -> Path:
     return config.PAYLOAD_DIR / sha256[:2] / f"{sha256}{ext}"
 
 
+def stored_payload(sha256: str) -> Path | None:
+    """The stored file for a payload, whatever extension it was saved under
+    (Dell ships .EXE, not .zip)."""
+    return next(iter(payload_path(sha256).parent.glob(sha256 + ".*")), None)
+
+
 def run(conn: sqlite3.Connection, run_date: str, *, vendor: str | None = None,
         limit: int | None = None, kinds=FETCH_KINDS, newest_only: bool = False,
         log=print) -> dict:
@@ -110,13 +116,13 @@ def _already_stored(conn, row) -> bool:
             "SELECT sha256 FROM artefact WHERE md5 = ? AND sha256 IS NOT NULL LIMIT 1",
             (row["md5"],)).fetchone()
         sha = peer["sha256"] if peer else None
-        if sha and payload_path(sha).exists():
+        if sha and stored_payload(sha):
             conn.execute("UPDATE artefact SET sha256 = ? WHERE artefact_id = ?",
                          (sha, row["artefact_id"]))
             conn.commit()
             return True
         return False
-    return bool(sha) and payload_path(sha).exists()
+    return bool(sha) and stored_payload(sha) is not None
 
 
 def _download(client: PoliteClient, url: str) -> tuple[str, str, int, Path]:

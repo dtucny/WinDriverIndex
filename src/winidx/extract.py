@@ -22,7 +22,7 @@ import tempfile
 from pathlib import Path
 
 from . import config
-from .fetch import payload_path
+from .fetch import stored_payload
 from .hwids import is_hwid
 
 SEVENZIP = shutil.which("7zz") or shutil.which("7z") or "7zz"
@@ -52,7 +52,7 @@ def run(conn: sqlite3.Connection, *, limit: int | None = None,
         todo = todo[:limit]
     n_ok = n_noinf = n_fail = 0
     for sha in todo:
-        path = next(iter(payload_path(sha).parent.glob(sha + ".*")), None)
+        path = stored_payload(sha)
         if not path:
             continue
         try:

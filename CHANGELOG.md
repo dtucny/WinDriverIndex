@@ -17,6 +17,12 @@ published data schema is versioned separately (see `schema_version` in every
 - ASRock parses with selectolax's Lexbor backend (selectolax 1.0 removed
   Modest); camoufox 0.5.8 / playwright 1.62; urllib3 2.8.
 
+### Fixed
+
+- Payload fetch re-downloaded every Dell package (~30 GB) on each refresh:
+  the "already stored" check only looked for `.zip`, and Dell payloads are
+  stored as `.EXE`. It now matches any extension, as extract already did.
+
 ## [0.3.1] — 2026-10-23
 
 ### Fixed
