@@ -33,7 +33,9 @@ import re
 import sqlite3
 import time
 
-from selectolax.parser import HTMLParser
+# selectolax 1.0 removed the Modest backend (selectolax.parser); Lexbor parses
+# every stored ASRock page identically (1,240 pages checked, 2026-10-31)
+from selectolax.lexbor import LexborHTMLParser as HTMLParser
 
 from .. import config, db, scope, versions
 from ..http import PoliteClient
