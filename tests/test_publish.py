@@ -86,8 +86,9 @@ def test_mediatek_chip_named_in_listing():
 def test_changes_name_the_silicon_vendor(tmp_path):
     import json
     from winidx.publish import _changes
-    (tmp_path / "water-level.json").write_text(json.dumps({"data": [
-        {"family": "AMD Graphics", "version": "32.0.31041.1004"}]}))
+    (tmp_path / "water-level.json").write_text(json.dumps({
+        "generated": "2026-10-23T00:00:00+00:00",
+        "data": [{"family": "AMD Graphics", "version": "32.0.31041.1004"}]}))
     water = [{"family": "AMD Graphics", "version": "32.0.32015.7029",
               "first_published": "2026-10-20", "published_by": ["silicon"]}]
     ch = _changes(tmp_path, water, [], "2026-10-31T00:00:00+00:00",
