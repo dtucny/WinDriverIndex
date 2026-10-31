@@ -1,5 +1,5 @@
 version = 1
-revision = 5
+revision = 3
 requires-python = ">=3.14"
 
 [[package]]
@@ -803,7 +803,7 @@ requires-dist = [
     { name = "camoufox", specifier = ">=0.4.11" },
     { name = "curl-cffi", specifier = ">=0.13" },
     { name = "playwright", specifier = ">=1.62.0" },
-    { name = "selectolax", specifier = ">=0.3" },
+    { name = "selectolax", specifier = ">=1.0" },
 ]
 
 [package.metadata.requires-dev]
