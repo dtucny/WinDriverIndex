@@ -8,6 +8,15 @@ published data schema is versioned separately (see `schema_version` in every
 
 ## [Unreleased]
 
+### Changed
+
+- Landing page "What changed": upstream sources read as "Windows Update"
+  and "<chip maker> site" (AMD, Intel, NVIDIA, Realtek…) instead of
+  `wucatalog` / `silicon`. `changes.json` moves carry the family's
+  `silicon_vendor` for this.
+- ASRock parses with selectolax's Lexbor backend (selectolax 1.0 removed
+  Modest); camoufox 0.5.8 / playwright 1.62; urllib3 2.8.
+
 ## [0.3.1] — 2026-10-23
 
 ### Fixed

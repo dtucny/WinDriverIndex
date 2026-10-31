@@ -259,6 +259,11 @@ below the water line.</p>
     return;
   }
   const LABEL={msi:'MSI',asus:'ASUS',gigabyte:'Gigabyte',asrock:'ASRock',lenovo:'Lenovo',dell:'Dell',hp:'HP'};
+  // upstream sources: 'silicon' is the chip maker's own download page
+  const SILICON={amd:'AMD',intel:'Intel',nvidia:'NVIDIA',realtek:'Realtek',mediatek:'MediaTek',qualcomm:'Qualcomm'};
+  const via=(v,m)=>v==='wucatalog'?'Windows Update'
+    :v==='silicon'?`${SILICON[m.silicon_vendor]||'Chip maker'} site`
+    :(LABEL[v]||v);
   // what-changed section (emitted by publish as a diff vs the previous data)
   const ch=d.changes;
   if(ch && ((ch.water&&ch.water.length) || ch.new_boards_count)){
@@ -282,7 +287,7 @@ below the water line.</p>
       const rows=ch.water.slice(0,14);
       html+=`<table><thead><tr><th>Driver family</th><th class="num">Was</th><th class="num">Now</th><th>Via</th><th class="num">Dated</th></tr></thead><tbody>`
         +rows.map(m=>`<tr><td>${esc(m.family)}</td><td class="num">${esc(m.from||'—')}</td>`
-          +`<td class="num">${mark(m)}<b>${esc(m.to)}</b></td><td>${esc((m.published_by||[]).map(v=>LABEL[v]||v).join(', '))}</td>`
+          +`<td class="num">${mark(m)}<b>${esc(m.to)}</b></td><td>${esc((m.published_by||[]).map(v=>via(v,m)).join(', '))}</td>`
           +`<td class="num">${esc(m.date||'')}</td></tr>`).join('')
         +`</tbody></table>`
         +(ch.water.length>rows.length?`<div style="padding:8px 14px" class="note">…and ${ch.water.length-rows.length} more.</div>`:'')

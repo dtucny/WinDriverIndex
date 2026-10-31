@@ -70,7 +70,8 @@ def run(conn: sqlite3.Connection, *, log=print) -> dict:
 
     # diff against the previous published state BEFORE overwriting it, so
     # the landing page can say what a refresh actually changed
-    changes = _changes(out, water, boards, generated)
+    silicon_of = dict(conn.execute("SELECT name, silicon_vendor FROM family"))
+    changes = _changes(out, water, boards, generated, silicon_of)
 
     bios_data = bios.compute(conn)
     bios_per_board = bios_data.pop("per_board")
@@ -157,7 +158,8 @@ DOWNLOAD_HINTS = {
 }
 
 
-def _changes(out, water, boards, generated) -> dict | None:
+def _changes(out, water, boards, generated,
+             silicon_of: dict[str, str] | None = None) -> dict | None:
     """What this publish changed vs the previously published data: water-level
     movements and newly indexed machines. A publish that changes nothing
     carries the last non-empty delta forward (with its original dates), so
@@ -190,7 +192,10 @@ def _changes(out, water, boards, generated) -> dict | None:
                           "from": p["version"] if p else None,
                           "to": w["version"], "dir": dirn,
                           "date": w["first_published"],
-                          "published_by": w["published_by"]})
+                          "published_by": w["published_by"],
+                          # names the site behind a 'silicon' source (AMD,
+                          # Intel, NVIDIA, Realtek) on the landing page
+                          "silicon_vendor": (silicon_of or {}).get(w["family"])})
     new_boards = []
     if ob:
         old_ids = {b["board_id"] for b in ob["data"]}

@@ -81,3 +81,17 @@ def test_mediatek_chip_named_in_listing():
     assert route("MediaTek Wi-Fi", "mt7921_rz616_25.40.2.579") == {"MediaTek Wi-Fi 6E"}
     assert route("MediaTek Bluetooth", "mtk mt7925 bluetooth - 11") == {"MediaTek Bluetooth (Wi-Fi 7)"}
     assert route("MediaTek Wi-Fi", "mediatek wlan driver - 11") == set()
+
+
+def test_changes_name_the_silicon_vendor(tmp_path):
+    import json
+    from winidx.publish import _changes
+    (tmp_path / "water-level.json").write_text(json.dumps({"data": [
+        {"family": "AMD Graphics", "version": "32.0.31041.1004"}]}))
+    water = [{"family": "AMD Graphics", "version": "32.0.32015.7029",
+              "first_published": "2026-10-20", "published_by": ["silicon"]}]
+    ch = _changes(tmp_path, water, [], "2026-10-31T00:00:00+00:00",
+                  {"AMD Graphics": "amd"})
+    (move,) = ch["water"]
+    assert move["published_by"] == ["silicon"] and move["silicon_vendor"] == "amd"
+    assert move["dir"] == "up"
