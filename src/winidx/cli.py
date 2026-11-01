@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import sys
+from pathlib import Path
 
 from . import config, db, deploy, extract, families, fetch, publish
 from .http import PoliteClient
@@ -98,6 +99,18 @@ def main(argv: list[str] | None = None) -> int:
     p.set_defaults(func=lambda a: _int_stats(fetch.run(
         db.connect(), dt.date.today().isoformat(), vendor=a.vendor, limit=a.limit,
         newest_only=a.newest_only)))
+
+    p = sub.add_parser("add-payload",
+                       help="store a hand-downloaded silicon installer (CAPTCHA-gated vendors)")
+    p.add_argument("file", type=Path)
+    p.add_argument("--family", action="append", required=True,
+                   help="family the installer covers (repeat for several)")
+    p.add_argument("--version", required=True, help="the version the vendor's page lists")
+    p.add_argument("--url", required=True, help="the vendor's download link")
+    p.add_argument("--published", help="the page's release date (YYYY-MM-DD)")
+    p.set_defaults(func=lambda a: (fetch.add_manual(
+        db.connect(), a.file, dt.date.today().isoformat(), families=a.family,
+        version=a.version, url=a.url, published=a.published), 0)[1])
 
     p = sub.add_parser("extract", help="unpack payloads, hash INF/SYS, pull HWIDs (§6.2)")
     p.add_argument("--limit", type=int, help="extract at most N payloads")

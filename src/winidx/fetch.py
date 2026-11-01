@@ -178,3 +178,26 @@ def _download(client: PoliteClient, url: str, *,
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(body)
     return sha, md5, len(body), path
+
+
+def add_manual(conn: sqlite3.Connection, path: Path, run_date: str, *,
+               families: list[str], version: str, url: str,
+               published: str | None = None, log=print) -> str:
+    """Store a silicon-vendor installer downloaded by hand (Realtek's files sit
+    behind a CAPTCHA) and record it in upstream_payload for each family it
+    covers, so extract and publish treat it like a fetched one. `url` is
+    the vendor's download link, for provenance."""
+    from . import db
+    body = path.read_bytes()
+    sha = hashlib.sha256(body).hexdigest()
+    dest = payload_path(sha, path.suffix.lower() or ".bin")
+    if not stored_payload(sha):
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes(body)
+    for family in families:
+        db.upsert_upstream_payload(conn, run_date, family=family, version=version,
+                                   url=url, published=published)
+        conn.execute("UPDATE upstream_payload SET sha256 = ?, file_size = ?"
+                     " WHERE family = ? AND url = ?", (sha, len(body), family, url))
+    log(f"stored {path.name} {len(body) / 1e6:.1f} MB {sha[:12]} for {', '.join(families)}")
+    return sha

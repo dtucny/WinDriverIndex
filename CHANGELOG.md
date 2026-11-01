@@ -8,6 +8,26 @@ published data schema is versioned separately (see `schema_version` in every
 
 ## [Unreleased]
 
+### Added
+
+- `winidx add-payload`: store a silicon-vendor installer downloaded by hand
+  (Realtek's files sit behind a CAPTCHA) under its download link, for
+  extract and publish like a fetched one.
+- Realtek's own LAN installers (#15): PCIe NetAdapterCx 11.031.50 and NDIS
+  10.80.50, their "Not Support Power Saving" variants, and the USB Ethernet
+  Win11/Win10 packages give `silicon` INF rows (30 rows; the variants
+  install separately named `…sta.inf` INFs). Realtek 8125/8126/8168 LAN
+  water carries the full build (`1125.031.50.0603`, was the prefix
+  `1125.31.50`), and the NDIS release is a silicon row per family at its
+  INF version, `10.080.50.0407`: the same build board vendors already ship.
+
+### Fixed
+
+- `water-level.json` `lines[].newest` showed the listing's label where the
+  payload's INF had replaced it for ordering (ASRock's
+  `v10.080.0525.2026` package installs `10.080.50.0407`; an NVIDIA 32.x line
+  showed `32.0.101.7683`). It now shows the version the line is ordered by.
+
 ## [0.7.0] — 2026-11-01
 
 ### Added

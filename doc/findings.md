@@ -628,3 +628,22 @@ doc/upstream-requests.md).
   Intel's `SetupChipset.exe` is Advanced Installer (`AICustAct.dll`), mostly
   a bundled .NET 4.7.2; its INFs are not in any format 7-Zip opens.
 - The same carving opens 61 Dell installers that had yielded no INFs.
+
+## 2026-11-01 — Realtek's own LAN installers (issue #15)
+
+- Realtek's download links (`/Download/ToDownload?type=direct&downloadid=N`)
+  call `SubmitDownloadRequest`, which returns a token for a human CAPTCHA
+  page; there is no direct file URL. The files were downloaded by hand and
+  stored with `winidx add-payload`.
+- PCIe NetAdapterCx 11.031.50 (`Install_PCIE_Win11_11031_DMAROFF_09222026`):
+  `rt25cx21x64.inf` 1125.031.50.0603 and siblings for 8126/8127/8168/8166/
+  8124/8110, all DriverVer 2026-06-03, plus `rtots640x64.inf` 10.080.50.0407.
+- NDIS 10.80.50, listed 2026-10-05: `rt640x64.inf` **10.080.50.0407**
+  (2026-04-07), the build ASRock and Dell already list. ASRock's
+  `Realtek_LAN(v10.080.0525.2026).zip` carries that same INF; the label is
+  ASRock's.
+- "Not Support Power Saving" variants (x.x.20) install `…sta.inf` files
+  (`rt25cx21x64sta.inf` 1125.031.20.0603, `rt640x64sta.inf` 10.080.20.0407),
+  so a device on one reports a different INF name.
+- USB Ethernet (cate_id 585): Win11 `rtu5Ncx22x64sta.inf` 115N.23.20.0605
+  (8152/8153/8155/8156…), Win10 `rtump64x64sta.inf` 10.68.20.0605.

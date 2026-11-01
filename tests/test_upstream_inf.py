@@ -136,3 +136,22 @@ def test_silicon_row_keeps_earlier_upstream_date(tmp_path):
     (row,) = publish._infs(conn)
     assert row["sources"] == ["silicon", "wucatalog"]
     assert row["first_published"] == "2026-06-17" and row["driver_date"] == "2026-06-18"
+
+
+def test_realtek_build_comes_from_the_stored_installer(tmp_path):
+    from winidx.vendors.silicon import _realtek_row, _RTK_NDIS, _stored_inf_ver
+    body = ('<table><tr><td><a href="/Download/ToDownload?type=direct&amp;downloadid=3613">'
+            '</a></td><td>Win10/Win11 Auto Installation Program (NDIS)</td><td>10.80.50</td>'
+            '<td>2026/10/05</td><td>5 MB</td></tr></table>')
+    ver, date, url = _realtek_row(body, _RTK_NDIS)
+    assert (ver, date) == ("10.80.50", "2026-10-05") and url.endswith("downloadid=3613")
+    conn = db.connect(tmp_path / "t.sqlite")
+    assert _stored_inf_ver(conn, url, ver, "rt640x64.inf") is None
+    db.upsert_upstream_payload(conn, "2026-11-01", family="Realtek 8125 LAN",
+                               version="10.80.50", url=url, published=date)
+    conn.execute("UPDATE upstream_payload SET sha256 = 'p1'")
+    conn.execute("INSERT INTO inf VALUES ('p1', '!Install/WIN11/64/rt640x64.inf', 'i1',"
+                 " 'Realtek', 'Net', '2026-04-07', '10.080.50.0407', '[]')")
+    assert _stored_inf_ver(conn, url, ver, "rt640x64.inf") == "10.080.50.0407"
+    # a newer release on the page than the stored installer: no build to give
+    assert _stored_inf_ver(conn, url, "10.80.51", "rt640x64.inf") is None

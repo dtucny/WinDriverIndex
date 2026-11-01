@@ -529,7 +529,10 @@ def _lines(conn, families, effective) -> dict[int, dict[int, dict]]:
         ln = lines[r["family_id"]].setdefault(
             e.tuple[0], {"top": None, "date": None, "disp": None, "span": None})
         if ln["top"] is None or versions.compare_key(e) > versions.compare_key(ln["top"]):
-            ln.update(top=e, disp=_equiv(families[r["family_id"]]["name"], raw) or raw)
+            # shown as ordered: the INF version where the payload's INF
+            # replaced the listing's label (ASRock's 'v10.080.0525.2026'
+            # package installs rt640x64.inf 10.080.50.0407), as the water does
+            ln.update(top=e, disp=_equiv(families[r["family_id"]]["name"], raw) or e.raw)
     for (fid, t), d in first.items():
         ln = lines[fid][t[0]]
         ln["span"] = [min(ln["span"][0], d), None] if ln["span"] else [d, None]

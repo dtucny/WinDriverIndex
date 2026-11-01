@@ -171,26 +171,54 @@ def _rn_rows(body: str) -> list[list[str]]:
 # package as '11.031.50'. Each chip's INF in that package carries the chip's
 # prefix instead of 11 (rt25cx21: 1125.31.50.x, rt68cx21: 1168.31.50.x; Windows
 # Update's 8127 build is 1127.31.50.603), which is the scheme the family water
-# uses, so the page gives each family 'prefix.31.50'. The build (fourth) part
-# isn't shown and the files sit behind a CAPTCHA, so this is a version prefix,
-# never an infs.json row. The NDIS package (10.80.50, rt640x64.inf) likewise
-# lacks its build and is not recorded.
+# uses. The page omits the build (fourth) part and the files sit behind a
+# CAPTCHA, so they are downloaded by hand (`winidx add-payload`, keyed by the
+# page's download link). When the stored installer is the release the page
+# lists, each family gets its chip INF's full DriverVer (1125.031.50.0603);
+# otherwise 'prefix.31.50', a version prefix. The NDIS package (10.80.50,
+# rt640x64.inf) is recorded only from a stored installer: as a prefix it
+# would cover every 10.080.50.x build already listed. The 'Not Support Power
+# Saving' variants (x.x.20) install differently named INFs (rt25cx21x64sta)
+# and are never recorded as releases.
 REALTEK_LAN_URL = "https://www.realtek.com/Download/List?cate_id=584"
-REALTEK_LAN_FAMILIES = {"Realtek 8168 LAN": "1168", "Realtek 8125 LAN": "1125",
-                        "Realtek 8126 LAN": "1126"}
+REALTEK_DOWNLOAD = "https://www.realtek.com/Download/ToDownload?type=direct&downloadid="
+REALTEK_LAN_FAMILIES = {"Realtek 8168 LAN": ("1168", "rt68cx21x64.inf"),
+                        "Realtek 8125 LAN": ("1125", "rt25cx21x64.inf"),
+                        "Realtek 8126 LAN": ("1126", "rt26cx21x64.inf")}
 _RTK_NETADAPTER = re.compile(r"^Win11 Auto Installation Program \(NetAdapterCx\)$")
+_RTK_NDIS = re.compile(r"^Win10/Win11 Auto Installation Program \(NDIS\)$")
+
+
+def _realtek_row(body: str, title: re.Pattern) -> tuple[str, str | None, str | None] | None:
+    """(package version, ISO date, download link) of the row titled exactly so."""
+    for tr in re.findall(r"<tr.*?</tr>", body, re.S):
+        cells = [c for row in _rn_rows(tr)[:1] for c in row if c]
+        if len(cells) >= 3 and title.match(cells[0]) \
+                and re.fullmatch(r"\d+\.\d+\.\d+", cells[1]):
+            m = re.fullmatch(r"(\d{4})/(\d{2})/(\d{2})", cells[2])
+            dl = re.search(r"downloadid=(\d+)", tr)
+            return (cells[1], f"{m.group(1)}-{m.group(2)}-{m.group(3)}" if m else None,
+                    REALTEK_DOWNLOAD + dl.group(1) if dl else None)
+    return None
 
 
 def parse_realtek_lan(body: str) -> tuple[str, str] | None:
     """(package version, ISO date) of the Win11 NetAdapterCx package with
     power saving (the '- Not Support Power Saving' build is a variant)."""
-    for cells in _rn_rows(body):
-        cells = [c for c in cells if c]
-        if len(cells) >= 3 and _RTK_NETADAPTER.match(cells[0]) \
-                and re.fullmatch(r"\d+\.\d+\.\d+", cells[1]):
-            m = re.fullmatch(r"(\d{4})/(\d{2})/(\d{2})", cells[2])
-            return cells[1], (f"{m.group(1)}-{m.group(2)}-{m.group(3)}" if m else None)
-    return None
+    row = _realtek_row(body, _RTK_NETADAPTER)
+    return row[:2] if row else None
+
+
+def _stored_inf_ver(conn, url: str | None, version: str, inf: str) -> str | None:
+    """DriverVer of `inf` in the hand-stored installer behind `url`, if that
+    installer is the release the page lists now."""
+    if not url:
+        return None
+    row = conn.execute(
+        "SELECT i.driver_ver FROM upstream_payload p JOIN inf i ON i.payload_sha256 = p.sha256"
+        " WHERE p.url = ? AND p.version = ? AND lower(i.path) LIKE ?",
+        (url, version, "%" + inf)).fetchone()
+    return row["driver_ver"] if row else None
 
 
 def _realtek_lan(conn, client, run_date, log) -> int:
@@ -200,22 +228,30 @@ def _realtek_lan(conn, client, run_date, log) -> int:
     except Exception as exc:
         log(f"  silicon MISS Realtek LAN: fetch failed — {str(exc)[:80]}")
         return 0
-    found = parse_realtek_lan(body)
+    found = _realtek_row(body, _RTK_NETADAPTER)
     if not found:
         log("  silicon MISS Realtek LAN: NetAdapterCx row not found (layout changed?)")
         return 0
-    pkg, date = found
+    pkg, date, url = found
     major, minor, rev = pkg.split(".")
     if major != "11":
         log(f"  silicon MISS Realtek LAN: unexpected package scheme {pkg}")
         return 0
+    ndis = _realtek_row(body, _RTK_NDIS)
+    for title, row in (("NetAdapterCx", found), ("NDIS", ndis)):
+        if row and row[2] and not conn.execute(
+                "SELECT 1 FROM upstream_payload WHERE url = ? AND version = ?"
+                " AND sha256 IS NOT NULL", (row[2], row[0])).fetchone():
+            log(f"  silicon: Realtek {title} {row[0]} not stored — download {row[2]}"
+                f" by hand and run `winidx add-payload` for its INF build")
     n = 0
-    for family, prefix in REALTEK_LAN_FAMILIES.items():
+    for family, (prefix, inf) in REALTEK_LAN_FAMILIES.items():
         fam = conn.execute("SELECT family_id FROM family WHERE name = ?",
                            (family,)).fetchone()
         if not fam:
             continue
-        ver = f"{prefix}.{int(minor)}.{int(rev)}"
+        ver = (_stored_inf_ver(conn, url, pkg, inf)
+               or f"{prefix}.{int(minor)}.{int(rev)}")
         db.upsert_artefact(
             conn, run_date, vendor=VENDOR, vendor_artefact_id=family,
             kind="driver", family_id=fam["family_id"], source_type="upstream",
@@ -225,6 +261,15 @@ def _realtek_lan(conn, client, run_date, log) -> int:
             url=REALTEK_LAN_URL)
         n += 1
         log(f"  silicon: {family:20} -> {ver} ({date or 'no date'})")
+        if ndis and (nver := _stored_inf_ver(conn, ndis[2], ndis[0], "rt640x64.inf")):
+            db.upsert_artefact(
+                conn, run_date, vendor=VENDOR, vendor_artefact_id=f"{family} (NDIS)",
+                kind="driver", family_id=fam["family_id"], source_type="upstream",
+                version_raw=nver, version_normalised=versions.parse(nver).normalised_json,
+                release_date=ndis[1], os_raw="Win10/Win11 64",
+                description_text=f"Realtek NDIS {ndis[0]} — Silicon-vendor download page",
+                url=REALTEK_LAN_URL)
+            log(f"  silicon: {family + ' (NDIS)':20} -> {nver} ({ndis[1] or 'no date'})")
     conn.commit()
     return n
 
