@@ -73,9 +73,7 @@ PAGES: list[tuple[str, str, str]] = [
 # release and a web installer with no drivers in it, hence the version.
 # AMD's chipset package unpacks at run time (no static INFs) and Killer
 # Suite is an application, so neither is fetched. Intel's Wi-Fi, Bluetooth
-# and chipset INF installers are WiX Burn bundles whose INFs sit three
-# wrappers deep (PE overlay -> attached cab -> extensionless files), beyond
-# what extract unpacks; board vendors repackage those drivers anyway.
+# and chipset INF installers are WiX Burn bundles (extract._burn).
 _AMD_RX9070XT = ("https://www.amd.com/en/support/downloads/drivers.html/graphics/"
                  "radeon-rx/radeon-rx-9000-series/amd-radeon-rx-9070-xt.html")
 _ADRENALIN = (r'(https://drivers\.amd\.com/drivers/whql-amd-software-'
@@ -84,6 +82,12 @@ DOWNLOADS: dict[str, list[tuple[str | None, str]]] = {
     "NVIDIA Graphics": [(None, r'"DownloadURL"\s*:\s*"(https://[^"]+/{ver}/[^"]+\.exe)"')],
     "AMD Graphics": [(None, _ADRENALIN % "a"), (_AMD_RX9070XT, _ADRENALIN % "b")],
     "Intel VGA": [(None, r'(https://downloadmirror\.intel\.com/\d+/gfx_win_[\d.]+\.exe)')],
+    "Intel Wi-Fi": [(None, r'(https://downloadmirror\.intel\.com/\d+/WiFi-[\d.]+-'
+                           r'Driver64-Win10-Win11\.exe)')],
+    "Intel Bluetooth": [(None, r'(https://downloadmirror\.intel\.com/\d+/BT-[\d.]+-'
+                               r'64UWD-Win10-Win11\.exe)')],
+    "Intel Chipset INF": [(None, r'(https://downloadmirror\.intel\.com/\d+/'
+                                 r'SetupChipset\.exe)')],
 }
 # drivers.amd.com answers a request without an amd.com Referer with an HTML
 # page (HTTP 200), not the file.

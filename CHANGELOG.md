@@ -8,6 +8,21 @@ published data schema is versioned separately (see `schema_version` in every
 
 ## [Unreleased]
 
+### Added
+
+- Installers 7-Zip can't open as a PE are carved apart by signature, with
+  WiX Burn bundles' container files renamed from the bundle manifest
+  (#11). Intel's own Wi-Fi and Bluetooth packages now give `silicon` INF
+  rows (`netwtw08`/`netwtw6e`, `ibtusb`/`ibtpci` 24.80.0.2), and 61 Dell
+  installers that yielded nothing now give INFs. Intel's chipset INF
+  utility is an Advanced Installer bundle and still yields none.
+
+### Changed
+
+- `download_hint` is per family (#14): AMD Chipset and AMD RAID point at
+  AMD's chipset drivers instead of Adrenalin; Intel Wi-Fi, Bluetooth,
+  Chipset INF and Arc/Iris graphics link their own Intel download pages.
+
 ## [0.6.0] — 2026-11-01
 
 ### Added

@@ -620,3 +620,11 @@ doc/upstream-requests.md).
   majority guard rejected it and jumped to the dominant 7.x line, so 8.x was
   never a candidate. HP's `19.10.RC10.190514a` parses as 10.190514 and a
   Windows Update 10.0.1.42 row keeps that line from looking stale.
+- Intel's Wi-Fi and Bluetooth installers are WiX Burn bundles: `7zz -t#`
+  splits the stub; the second PE's overlay holds the UX cab (with
+  `BurnManifest` mapping container ids like `a20` to `WiFiDriver\Netwtw08.INF`)
+  and the attached-container cab. Bluetooth's INFs sit in an MSI inside the
+  container, as `filXXXX` streams; each INF's `CatalogFile=` gives its name.
+  Intel's `SetupChipset.exe` is Advanced Installer (`AICustAct.dll`), mostly
+  a bundled .NET 4.7.2; its INFs are not in any format 7-Zip opens.
+- The same carving opens 61 Dell installers that had yielded no INFs.

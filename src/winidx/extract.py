@@ -123,42 +123,118 @@ def _extract_and_index(sha: str, archive: Path) -> list[dict]:
                 if inner.is_file() and inner.suffix.lower() in NESTED_EXTS:
                     out = root / dst / inner.relative_to(root / src)
                     _7z(inner, out, ignore_errors=True)   # many .exe aren't archives
-        records = []
-        for base, layer in (("0", 0), ("1", 1), ("2", 2)):
-            layer_root = root / base
-            if not layer_root.exists():
-                continue
-            for f in sorted(layer_root.rglob("*")):
-                if not f.is_file():
-                    continue
-                suffix = f.suffix.lower()
-                # 7z extracts .msi contents as extensionless file-table
-                # stream names ('fil07F5DF…'); sniff those for INF content.
-                is_inf = suffix == ".inf"
-                if not suffix and layer > 0 and f.stat().st_size < 2_000_000:
-                    head = f.read_bytes()[:4096]
-                    text = head.decode("utf-16", errors="ignore") \
-                        if head[:2] in (b"\xff\xfe", b"\xfe\xff") \
-                        else head.decode("latin-1", errors="ignore")
-                    is_inf = "$WINDOWS NT$" in text or "[Version]" in text
-                if not (is_inf or suffix == ".sys"):
-                    continue
-                data = f.read_bytes()
-                rec = {
-                    "path": "!" * layer + str(f.relative_to(layer_root)),
-                    "sha256": hashlib.sha256(data).hexdigest(),
-                    "size": len(data),
-                }
-                if is_inf:
-                    rec["meta"] = _parse_inf(data)
-                records.append(rec)
+        records = _index_layers(root, (("0", 0), ("1", 1), ("2", 2)))
+        if not any("meta" in r for r in records) and _magic(archive) == "pe":
+            # installers whose drivers 7-Zip's PE view can't see (Intel's
+            # WiX Burn bundles): carve them apart by signature instead
+            _carve(archive, root / "b")
+            _burn_names(root / "b")
+            records += _index_layers(root, (("b", 3),))
         return records
 
 
-def _7z(archive: Path, out: Path, *, ignore_errors: bool = False) -> None:
+def _index_layers(root: Path, layers) -> list[dict]:
+    records = []
+    for base, layer in layers:
+        layer_root = root / base
+        if not layer_root.exists():
+            continue
+        for f in sorted(layer_root.rglob("*")):
+            if not f.is_file():
+                continue
+            suffix = f.suffix.lower()
+            # 7z extracts .msi contents as extensionless file-table
+            # stream names ('fil07F5DF…'); sniff those for INF content.
+            is_inf = suffix == ".inf"
+            if not suffix and layer > 0 and f.stat().st_size < 2_000_000:
+                head = f.read_bytes()[:4096]
+                text = head.decode("utf-16", errors="ignore") \
+                    if head[:2] in (b"\xff\xfe", b"\xfe\xff") \
+                    else head.decode("latin-1", errors="ignore")
+                is_inf = "$WINDOWS NT$" in text or "[Version]" in text
+            if not (is_inf or suffix == ".sys"):
+                continue
+            data = f.read_bytes()
+            rec = {
+                "path": "!" * layer + str(f.relative_to(layer_root)),
+                "sha256": hashlib.sha256(data).hexdigest(),
+                "size": len(data),
+            }
+            if is_inf:
+                rec["meta"] = _parse_inf(data)
+                if layer == 3 and not suffix and (cat := _CATALOG.search(_decode_inf(data))):
+                    # carved MSI streams ('fil5639F8…') lose the file name;
+                    # Intel names each INF after its catalog (ibtusb.cat)
+                    rec["path"] = rec["path"] + "/" + cat.group(1).rsplit(".", 1)[0] + ".inf"
+            records.append(rec)
+    return records
+
+
+_CATALOG = re.compile(r"^\s*CatalogFile(?:\.NTamd64)?\s*=\s*([\w.\-]+\.cat)\b",
+                      re.IGNORECASE | re.MULTILINE)
+_BURN_PAYLOAD = re.compile(rb'<Payload [^>]*?FilePath="([^"]+)"[^>]*?SourcePath="([^"]+)"'
+                           rb'[^>]*?Container=')
+
+
+def _magic(path: Path) -> str | None:
+    with open(path, "rb") as fh:
+        head = fh.read(8)
+    for sig, kind in ((b"MZ", "pe"), (b"MSCF", "cab"), (b"\xd0\xcf\x11\xe0", "msi"),
+                      (b"PK\x03\x04", "zip"), (b"7z\xbc\xaf\x27\x1c", "7z")):
+        if head.startswith(sig):
+            return kind
+    return None
+
+
+def _burn_names(root: Path) -> None:
+    """Give a Burn attached container's files ('a20') their manifest paths
+    ('WiFiDriver/Netwtw08.INF'). The manifest sits in the UX cab, a sibling
+    of the container cab under the same split."""
+    for manifest in root.rglob("*"):
+        if not manifest.is_file() or manifest.stat().st_size > 20_000_000:
+            continue
+        with open(manifest, "rb") as fh:
+            if b"<BurnManifest" not in fh.read(4096):
+                continue
+        split = manifest.parent.parent
+        names = {src.decode(): dst.decode().replace("\\", "/")
+                 for dst, src in _BURN_PAYLOAD.findall(manifest.read_bytes())}
+        for container in split.glob("*.cab.x"):
+            for src, dst in names.items():
+                f = container / src
+                if f.is_file():
+                    (container / dst).parent.mkdir(parents=True, exist_ok=True)
+                    f.rename(container / dst)
+
+
+def _carve(path: Path, out: Path, depth: int = 0) -> None:
+    """Split a PE by archive signatures (7-Zip '#'), then open what falls out:
+    inner PEs the same way, cabs and MSIs as archives. A Burn bundle is a stub
+    whose overlay is another PE, whose overlay holds the UX cab and the
+    attached container (extensionless files: UTF-16 INFs, catalogs, MSIs).
+    Pieces under 1 MB that are PEs are the stubs' own resources, not payloads."""
+    if depth > 4:
+        return
+    kind = _magic(path)
+    if kind == "pe":
+        _7z(path, out, ignore_errors=True, split=True)
+    elif kind:
+        _7z(path, out, ignore_errors=True)
+    else:
+        return
+    for f in sorted(out.rglob("*")):
+        if not f.is_file() or f == path or f.stat().st_size <= 4096:
+            continue
+        k = _magic(f)
+        if k and not (k == "pe" and f.stat().st_size < 1_000_000):
+            _carve(f, f.parent / (f.name + ".x"), depth + 1)
+
+
+def _7z(archive: Path, out: Path, *, ignore_errors: bool = False,
+        split: bool = False) -> None:
     out.mkdir(parents=True, exist_ok=True)
     proc = subprocess.run(
-        [SEVENZIP, "x", "-y", "-p", f"-o{out}", str(archive)],
+        [SEVENZIP, "x", "-y", "-p", *(["-t#"] if split else []), f"-o{out}", str(archive)],
         capture_output=True, timeout=1800)
     if proc.returncode not in (0, 1) and not ignore_errors:   # 1 = warnings
         raise RuntimeError(f"7z exit {proc.returncode}: "

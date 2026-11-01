@@ -101,3 +101,18 @@ def test_display_inf_device_names():
         "PCI\\VEN_10DE&DEV_2782": "NVIDIA GeForce RTX 4070 Ti",
         "PCI\\VEN_1002&DEV_744C&REV_C8": "AMD Radeon RX 7900 XTX"}
     assert _parse_inf(text.replace("Display", "Net").encode())["names"] == {}
+
+
+def test_burn_container_files_get_manifest_names(tmp_path):
+    from winidx.extract import _burn_names
+    split = tmp_path / "2.exe.x"
+    (split / "2.cab.x").mkdir(parents=True)
+    (split / "4.cab.x").mkdir()
+    (split / "2.cab.x" / "0").write_bytes(
+        b'<?xml version="1.0"?><BurnManifest><Payload Id="p1" '
+        b'FilePath="WiFiDriver\\Netwtw08.INF" FileSize="3" Packaging="embedded" '
+        b'SourcePath="a20" Container="WixAttachedContainer" /></BurnManifest>')
+    (split / "4.cab.x" / "a20").write_bytes(b"inf")
+    _burn_names(tmp_path)
+    assert (split / "4.cab.x" / "WiFiDriver" / "Netwtw08.INF").read_bytes() == b"inf"
+    assert not (split / "4.cab.x" / "a20").exists()

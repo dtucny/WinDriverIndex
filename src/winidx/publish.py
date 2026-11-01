@@ -145,18 +145,40 @@ def _equiv(family: str, raw: str | None) -> str | None:
 # Where a user gets a family's driver when their machine vendor lags behind:
 # only families whose silicon vendor ships generic drivers to end users.
 # Everything else is OEM-customised — use the board's support_url.
-_AMD = {"label": "AMD Software: Adrenalin Edition (auto-detect) or AMD drivers page",
-        "url": "https://www.amd.com/en/support/download/drivers.html"}
+# One hint per family, naming that family's own download (WdiCheck #14:
+# AMD's chipset and RAID families pointed at Adrenalin). AMD has no
+# socket-neutral chipset page: the chipset package is the same on AM4 and AM5
+# pages, RAID differs (AM4 2.20.x, AM5 8.03.x), so both go to the driver
+# search with the choice spelled out.
+_AMD_SEARCH = "https://www.amd.com/en/support/download/drivers.html"
 _INTEL = {"label": "Intel Driver & Support Assistant",
           "url": "https://www.intel.com/content/www/us/en/support/detect.html"}
+_INTEL_DL = "https://www.intel.com/content/www/us/en/download/"
 DOWNLOAD_HINTS = {
     "NVIDIA Graphics": {"label": "NVIDIA App or NVIDIA driver search",
                         "url": "https://www.nvidia.com/en-us/drivers/"},
-    "AMD Graphics": _AMD, "AMD Chipset": _AMD, "AMD RAID": _AMD,
+    "AMD Graphics": {"label": "AMD Software: Adrenalin Edition (auto-detect) or AMD drivers page",
+                     "url": _AMD_SEARCH},
+    "AMD Chipset": {"label": "AMD chipset drivers (Ryzen): AMD drivers page, Chipsets,"
+                             " then your socket and chipset (one package for AM4 and AM5)",
+                    "url": _AMD_SEARCH},
+    "AMD RAID": {"label": "AMD RAID drivers: AMD drivers page, Chipsets, then your socket"
+                          " and chipset (AM4 and AM5 differ)",
+                 "url": _AMD_SEARCH},
+    "Intel Wi-Fi": {"label": "Intel Wireless Wi-Fi Drivers for Windows",
+                    "url": _INTEL_DL + "19351/intel-wireless-wi-fi-drivers-for-windows-10-and-windows-11.html"},
+    "Intel Bluetooth": {"label": "Intel Wireless Bluetooth for Windows",
+                        "url": _INTEL_DL + "18649/intel-wireless-bluetooth-for-windows-10-and-windows-11.html"},
+    "Intel Chipset INF": {"label": "Intel Chipset INF Utility",
+                          "url": _INTEL_DL + "19347/chipset-inf-utility.html"},
+    "Intel VGA": {"label": "Intel Arc & Iris Xe Graphics driver",
+                  "url": _INTEL_DL + "785597/intel-arc-iris-xe-graphics-windows.html"},
+    "Killer Wi-Fi": {"label": "Intel Wireless Wi-Fi Drivers for Windows (Killer included)",
+                     "url": _INTEL_DL + "19351/intel-wireless-wi-fi-drivers-for-windows-10-and-windows-11.html"},
+    "Killer Bluetooth": {"label": "Intel Wireless Bluetooth for Windows (Killer included)",
+                         "url": _INTEL_DL + "18649/intel-wireless-bluetooth-for-windows-10-and-windows-11.html"},
     **{name: _INTEL for name in (
-        "Intel VGA", "Intel Wi-Fi", "Intel Bluetooth", "Intel LAN",
-        "Intel I211 LAN", "Intel I219 LAN", "Intel I225/I226 LAN",
-        "Intel Chipset INF", "Intel RST", "Killer Wi-Fi", "Killer Bluetooth")},
+        "Intel LAN", "Intel I211 LAN", "Intel I219 LAN", "Intel I225/I226 LAN", "Intel RST")},
 }
 
 
