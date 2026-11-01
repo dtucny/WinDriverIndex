@@ -8,6 +8,8 @@ published data schema is versioned separately (see `schema_version` in every
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-11-01
+
 ### Added
 
 - Installers 7-Zip can't open as a PE are carved apart by signature, with
@@ -517,7 +519,8 @@ First working end-to-end pipeline across all four in-scope vendors.
   "BlueTooth Driver" entries resolve only via INF evidence.
 - Laptops, GPUs, and pre-AM4/pre-12th-gen hardware are out of scope for v1.
 
-[Unreleased]: https://github.com/dtucny/WinDriverIndex/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/dtucny/WinDriverIndex/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/dtucny/WinDriverIndex/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/dtucny/WinDriverIndex/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/dtucny/WinDriverIndex/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/dtucny/WinDriverIndex/compare/v0.3.1...v0.4.0
