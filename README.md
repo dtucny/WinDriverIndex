@@ -17,6 +17,7 @@ Static JSON, CORS-enabled, served from Cloudflare. Start here:
 | [`/v1/latest/boards.json`](https://windriverindex.tucny.com/v1/latest/boards.json) | Device catalogue (chipset / socket / product type / SMBIOS match keys) |
 | [`/v1/latest/artefacts.json`](https://windriverindex.tucny.com/v1/latest/artefacts.json) | Every indexed driver listing (vendor, version, date, URL, hashes) |
 | [`/v1/latest/vendor-lag.json`](https://windriverindex.tucny.com/v1/latest/vendor-lag.json) | The vendor-lag metric |
+| [`/v1/latest/silicon-lag.json`](https://windriverindex.tucny.com/v1/latest/silicon-lag.json) | The same lag by driver family and by silicon vendor, each split by board vendor, plus each board vendor's lag against the family median (mix-adjusted) |
 | [`/v1/latest/changes.json`](https://windriverindex.tucny.com/v1/latest/changes.json) | What the latest refresh changed (water moves, new machines) |
 | [`/v1/latest/bios.json`](https://windriverindex.tucny.com/v1/latest/bios.json) | BIOS currency and AGESA water level |
 | [`/v1/latest/manifest.json`](https://windriverindex.tucny.com/v1/latest/manifest.json) | Size and sha256 of every file above: revalidate this one first |

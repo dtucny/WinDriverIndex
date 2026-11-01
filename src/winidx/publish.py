@@ -15,6 +15,7 @@ import datetime as dt
 import json
 import re
 import sqlite3
+import statistics
 from collections import defaultdict
 
 from . import bios, config, hwids, versions
@@ -79,8 +80,10 @@ def run(conn: sqlite3.Connection, *, log=print) -> dict:
     bios_per_board = bios_data.pop("per_board")
     emit("bios.json", bios_data)
     emit("changes.json", changes)
+    silicon_lag = _silicon_lag(board_lag, families, boards)
     dash = _dashboard(conn, families, water, board_lag, effective, bios_data)
     dash["changes"] = changes
+    dash["silicon"] = _dashboard_silicon(silicon_lag)
     emit("dashboard.json", dash)
     for f in families.values():
         f["version_equiv"] = SCHEME_EQUIV.get(f["name"])
@@ -90,6 +93,7 @@ def run(conn: sqlite3.Connection, *, log=print) -> dict:
     emit("boards.json", boards)
     emit("water-level.json", water)
     emit("vendor-lag.json", vendor_lag)
+    emit("silicon-lag.json", silicon_lag)
     infs = _infs(conn)
     emit("infs.json", infs)
 
@@ -497,6 +501,91 @@ def _lag(conn, families, water, effective) -> tuple[list[dict], list[dict]]:
             "boards_over_365d": sum(1 for lags in boards if max(lags) > 365),
         })
     return board_lag, vendor_lag
+
+
+def _lag_stats(lags: list[int]) -> dict:
+    lags = sorted(lags)
+    return {"pairings": len(lags),
+            "median_lag_days": lags[len(lags) // 2] if lags else None,
+            "p90_lag_days": lags[int(len(lags) * 0.9)] if lags else None,
+            "share_over_365d": round(sum(l > 365 for l in lags) / len(lags), 3)
+                               if lags else None}
+
+
+def _silicon_lag(board_lag, families, boards) -> dict:
+    """vendor-lag.json's pairings by family and by silicon vendor, each split
+    by board vendor, so a vendor's median can be told apart from the
+    families it ships: is HP's lag HP's, or Realtek audio's on every vendor?
+    board_vendors[].median_excess_days answers that directly: the median of
+    each pairing's lag minus its family's median across all vendors (0 =
+    as current as everyone else on the same families)."""
+    vendor_of = {b["board_id"]: b["vendor"] for b in boards}
+    pairs = [(vendor_of[e["board_id"]], e["family_id"], e["lag_days"])
+             for e in board_lag if e["lag_days"] is not None]
+    by_fam: dict[int, dict[str, list[int]]] = defaultdict(lambda: defaultdict(list))
+    for v, fid, lag in pairs:
+        by_fam[fid][v].append(lag)
+
+    def split(per_vendor: dict[str, list[int]]) -> dict:
+        allv = [l for ls in per_vendor.values() for l in ls]
+        return {**_lag_stats(allv), "board_vendors": len(per_vendor),
+                "by_board_vendor": {v: _lag_stats(ls) for v, ls in sorted(per_vendor.items())}}
+
+    fam_rows = []
+    for fid, pv in by_fam.items():
+        f = families[fid]
+        fam_rows.append({"family_id": fid, "family": f["name"],
+                         "silicon_vendor": f["silicon_vendor"],
+                         "component": f["component"], **split(pv)})
+    fam_rows.sort(key=lambda r: (-r["pairings"], r["family"]))
+
+    by_si: dict[str, dict[str, list[int]]] = defaultdict(lambda: defaultdict(list))
+    n_fams: dict[str, int] = defaultdict(int)
+    for fid, pv in by_fam.items():
+        si = families[fid]["silicon_vendor"]
+        n_fams[si] += 1
+        for v, ls in pv.items():
+            by_si[si][v] += ls
+    si_rows = sorted(({"silicon_vendor": si, "families": n_fams[si], **split(pv)}
+                      for si, pv in by_si.items()), key=lambda r: -r["pairings"])
+
+    # the true median: the upper one (as elsewhere) would make the slower
+    # half of an evenly split family its baseline
+    fam_median = {fid: statistics.median(l for ls in pv.values() for l in ls)
+                  for fid, pv in by_fam.items()}
+    excess: dict[str, list[int]] = defaultdict(list)
+    for v, fid, lag in pairs:
+        excess[v].append(round(lag - fam_median[fid]))
+    bv_rows = []
+    for v, ex in sorted(excess.items()):
+        ex.sort()
+        bv_rows.append({"vendor": v, "pairings": len(ex),
+                        "median_excess_days": ex[len(ex) // 2],
+                        # share of the vendor's pairings behind the family's
+                        # all-vendor median
+                        "share_behind_family_median": round(sum(e > 0 for e in ex) / len(ex), 3)})
+    return {"silicon_vendors": si_rows, "families": fam_rows, "board_vendors": bv_rows}
+
+
+# The landing page's silicon × board-vendor matrix leaves out silicon vendors
+# with too few pairings to say anything (ASPEED, AMI: a handful of server
+# boards), and cells too thin to read a median from.
+DASH_SILICON_MIN_PAIRINGS = 100
+DASH_CELL_MIN_PAIRINGS = 20
+
+
+def _dashboard_silicon(silicon_lag) -> dict:
+    rows = []
+    for r in silicon_lag["silicon_vendors"]:
+        if r["pairings"] < DASH_SILICON_MIN_PAIRINGS:
+            continue
+        rows.append({k: r[k] for k in ("silicon_vendor", "families", "pairings",
+                                       "median_lag_days", "share_over_365d")}
+                    | {"by_board_vendor": {
+                        v: {"median_lag_days": s["median_lag_days"], "pairings": s["pairings"]}
+                        for v, s in r["by_board_vendor"].items()
+                        if s["pairings"] >= DASH_CELL_MIN_PAIRINGS}})
+    return {"silicon_vendors": rows, "board_vendors": silicon_lag["board_vendors"]}
 
 
 def _lines(conn, families, effective) -> dict[int, dict[int, dict]]:

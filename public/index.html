@@ -176,6 +176,13 @@ all in two years</b>.</p>
 <div class="card scroll" id="fullmetric"></div>
 <p class="note" style="margin-top:12px" id="tiernote"></p>
 
+<h2>Is it the vendor or the silicon?</h2>
+<p class="note">The same pairings split by whose chip the driver is for. Read
+a row across: lag that is high for every vendor is the silicon's (frequent
+releases nobody keeps up with); a column high on every row is the vendor's.</p>
+<div class="card scroll" style="padding:14px" id="siwrap"></div>
+<p class="note" style="margin-top:12px" id="sinote"></p>
+
 <h2>Do vendors maintain their back catalogue?</h2>
 <p class="note">Median worst-case lag per desktop platform, plus each vendor's
 add-in graphics cards (laptop/desktop system vendors have no socket and sit
@@ -215,6 +222,7 @@ running them, and the MSIX needs extra steps to install.</p>
   <tbody>
     <tr><td><a href="/v1/latest/water-level.json"><code>/v1/latest/water-level.json</code></a></td><td>Newest known version per driver family</td></tr>
     <tr><td><a href="/v1/latest/vendor-lag.json"><code>/v1/latest/vendor-lag.json</code></a></td><td>The vendor-lag metric</td></tr>
+    <tr><td><a href="/v1/latest/silicon-lag.json"><code>/v1/latest/silicon-lag.json</code></a></td><td>Lag by driver family and silicon vendor, split by board vendor</td></tr>
     <tr><td><a href="/v1/latest/families.json"><code>/v1/latest/families.json</code></a></td><td>Family table with HWID sets</td></tr>
     <tr><td><a href="/v1/latest/boards.json"><code>/v1/latest/boards.json</code></a></td><td>Board &amp; machine catalogue</td></tr>
     <tr><td><a href="/v1/latest/bios.json"><code>/v1/latest/bios.json</code></a></td><td>BIOS currency + AGESA water level</td></tr>
@@ -346,6 +354,38 @@ running them, and the MSIX needs extra steps to install.</p>
     counts machines whose listing has had no driver update of any kind in over
     two years — not slow support, none. ${LABEL[worstSilent]} leads that column
     with ${ws.silent_2yr} machines (${ws.silent_2yr_pct}% of its catalogue).`;
+
+  // silicon vendor × board vendor
+  if(d.silicon){
+    const SI={intel:'Intel',realtek:'Realtek',amd:'AMD',nvidia:'NVIDIA',mediatek:'MediaTek',
+      qualcomm:'Qualcomm',ite:'ITE',aquantia:'Aquantia',asmedia:'ASMedia',dts:'DTS',
+      oem:'OEM parts<br><small style="font-weight:400">camera, fingerprint, card reader…</small>'};
+    const sstep=v=>v<120?'c1':v<250?'c2':v<500?'c3':v<900?'c4':'c5';
+    $('siwrap').innerHTML=`<table class="heat"><thead><tr><th></th><th>all vendors</th>`+
+      order.map(v=>`<th>${LABEL[v]||v}</th>`).join('')+`</tr></thead><tbody>`+
+      d.silicon.silicon_vendors.map(r=>`<tr><th style="text-align:right">${SI[r.silicon_vendor]||esc(r.silicon_vendor)}</th>
+        <td><div class="cell ${sstep(r.median_lag_days)}">${r.median_lag_days}<small>${fmt(r.pairings)} pairs</small></div></td>`+
+        order.map(v=>{const c=r.by_board_vendor[v];return c?`<td><div class="cell ${sstep(c.median_lag_days)}">${c.median_lag_days}<small>${fmt(c.pairings)}</small></div></td>`:'<td></td>';}).join('')+
+      '</tr>').join('')+`</tbody></table>
+      <div class="legend">median lag days (a pairing is one machine × one driver family):
+        <i style="background:var(--h1)"></i><span>&lt;120</span>
+        <i style="background:var(--h2)"></i><span>120–250</span>
+        <i style="background:var(--h3)"></i><span>250–500</span>
+        <i style="background:var(--h4)"></i><span>500–900</span>
+        <i style="background:var(--h5)"></i><span>900+</span></div>`;
+    const bv=d.silicon.board_vendors.slice().sort((a,b)=>b.median_excess_days-a.median_excess_days||
+      b.share_behind_family_median-a.share_behind_family_median);
+    const behind=bv.filter(x=>x.median_excess_days>0);
+    const pct=x=>Math.round(100*x.share_behind_family_median)+'%';
+    $('sinote').innerHTML=`<b>Mix-adjusted.</b> Compare each pairing with the
+      median for the same driver family across all vendors, so a vendor isn't
+      blamed for shipping slow-moving silicon. `+(behind.length?
+      behind.map(x=>`${LABEL[x.vendor]||x.vendor}'s typical listing is ${x.median_excess_days} days
+        behind its peers on the same families (${pct(x)} of its pairings behind the family median)`).join('; ')+
+      `; every other vendor's typical listing matches the family median (${bv.filter(x=>x.median_excess_days<=0)
+        .map(x=>`${LABEL[x.vendor]||x.vendor} ${pct(x)} behind`).join(', ')}).`
+      :`No vendor's typical listing is behind the family median.`);
+  }
 
   // heatmap (desktop vendors × sockets)
   const socks=['AM4','AM5','LGA1700','LGA1851','GPU'];

@@ -667,3 +667,27 @@ doc/upstream-requests.md).
   device (by base ID) in a base INF. A global "extensions never claim a
   base INF's HWIDs" rule is wrong: DTS and OEM audio families are mostly
   Extension INFs and lost most of their HWIDs under it.
+
+## 2026-11-02 — lag by silicon vendor (`silicon-lag.json`)
+
+The question: is HP's 597-day median HP's, or the silicon it ships (Realtek
+audio, MediaTek)? Same pairings as vendor-lag, split by family.silicon_vendor:
+
+- Intel is most of the pairings (23.7k of ~46k) and the slowest big
+  silicon vendor, median 298 days; Realtek 209; AMD 246; NVIDIA 162;
+  MediaTek the most current at 103. OEM parts (camera, fingerprint, card
+  reader: laptop-only families) are the worst rows (median 985), and
+  Qualcomm (1231).
+- HP is slow on every silicon row: Intel 597, AMD 415, Realtek 403 (the
+  next-worst vendor per row is Lenovo, at 414 / 172 / 464). On Realtek Audio
+  specifically HP sits at the common 168 days; Dell (587) and Lenovo (446)
+  are the slow ones there.
+- Mix-adjusted (each pairing minus its family's all-vendor median): HP is
+  the only vendor whose median pairing is behind its peers, +56 days, with
+  57% of its pairings behind the family median (Gigabyte and Lenovo 45%,
+  ASUS 29%). So the 597 is HP's, not Realtek's.
+- Caveat: lag counts from the water level, which moves when anyone
+  (including the silicon vendor) ships; families with frequent releases
+  carry more lag for everyone. That is what the per-row reading controls.
+  Many families' lags cluster on one water date (168 days for Realtek Audio
+  at most vendors), so medians are lumpy.

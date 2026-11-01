@@ -8,6 +8,15 @@ published data schema is versioned separately (see `schema_version` in every
 
 ## [Unreleased]
 
+### Added
+
+- `silicon-lag.json`: the vendor-lag pairings by driver family and by
+  silicon vendor, each split by board vendor, and each board vendor's lag
+  against the family's all-vendor median (`median_excess_days`,
+  `share_behind_family_median`), so a vendor's lag can be told apart from
+  the silicon it ships. The landing page gains the silicon × board-vendor
+  matrix ("Is it the vendor or the silicon?").
+
 ### Fixed
 
 - Self-extracting zips (Dell's `.EXE` packages) are unpacked: 7-Zip opens

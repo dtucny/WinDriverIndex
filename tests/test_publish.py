@@ -146,3 +146,20 @@ def test_water_retries_past_a_stale_line_to_a_newer_corroborated_one(tmp_path):
     families = {fid: {"name": "AMD Chipset"}}
     (w,) = publish._water_level(conn, families, publish._effective_versions(conn))
     assert w["version"] == "8.3.25.8" and w["best_vendor_version"] == "8.3.25.8"
+
+
+def test_silicon_lag_separates_vendor_from_silicon():
+    from winidx.publish import _silicon_lag
+    families = {1: {"name": "Realtek Audio", "silicon_vendor": "realtek", "component": "audio"},
+                2: {"name": "Intel ME", "silicon_vendor": "intel", "component": "chipset"}}
+    boards = [{"board_id": b, "vendor": v} for b, v in ((1, "hp"), (2, "hp"), (3, "msi"), (4, "msi"))]
+    lag = {(1, 1): 600, (2, 1): 600, (3, 1): 600, (4, 1): 600,   # everyone slow: the silicon
+           (1, 2): 300, (2, 2): 300, (3, 2): 10, (4, 2): 10}     # HP slow: the vendor
+    board_lag = [{"board_id": b, "family_id": f, "lag_days": d} for (b, f), d in lag.items()]
+    out = _silicon_lag(board_lag, families, boards)
+    rtk = next(r for r in out["silicon_vendors"] if r["silicon_vendor"] == "realtek")
+    assert rtk["median_lag_days"] == 600 and rtk["by_board_vendor"]["msi"]["median_lag_days"] == 600
+    bv = {r["vendor"]: r for r in out["board_vendors"]}
+    assert bv["hp"]["median_excess_days"] > 0 and bv["hp"]["share_behind_family_median"] == 0.5
+    assert bv["msi"]["median_excess_days"] <= 0 and bv["msi"]["share_behind_family_median"] == 0
+    assert [r["family"] for r in out["families"]] == ["Intel ME", "Realtek Audio"]
