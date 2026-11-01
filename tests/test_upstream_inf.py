@@ -99,6 +99,17 @@ def test_silicon_installer_link_follows_listed_version():
     assert download_link(pat, nv, "616.92") is None
 
 
+def test_silicon_artefact_links_a_page():
+    from winidx.vendors.silicon import PAGES, page_link
+    url = dict((f, u) for f, u, _ in PAGES)
+    nv = '{"DetailsURL" : "https:\\/\\/www.nvidia.com\\/en-us\\/drivers\\/details\\/282412\\/"}'
+    assert (page_link("NVIDIA Graphics", url["NVIDIA Graphics"], nv)
+            == "https://www.nvidia.com/en-us/drivers/details/282412/")
+    assert page_link("NVIDIA Graphics", url["NVIDIA Graphics"], "{}") == url["NVIDIA Graphics"]
+    assert "7800x3d" not in page_link("AMD Graphics", url["AMD Graphics"], "")
+    assert page_link("Intel Wi-Fi", url["Intel Wi-Fi"], "") == url["Intel Wi-Fi"]
+
+
 def test_silicon_payload_infs_are_tagged_silicon(tmp_path):
     conn = db.connect(tmp_path / "t.sqlite")
     fid = conn.execute("INSERT INTO family (name, silicon_vendor, component)"

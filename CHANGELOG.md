@@ -8,6 +8,13 @@ published data schema is versioned separately (see `schema_version` in every
 
 ## [Unreleased]
 
+### Fixed
+
+- Silicon artefacts link a page for people (#16): NVIDIA Graphics links
+  the release's page (the lookup response's `DetailsURL`), not the JSON
+  driver-lookup API it is crawled from, and AMD Graphics links AMD's
+  drivers page, not the Ryzen 7 7800X3D page it is crawled from.
+
 ## [0.8.0] — 2026-11-01
 
 ### Added

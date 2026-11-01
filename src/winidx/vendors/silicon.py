@@ -89,6 +89,24 @@ DOWNLOADS: dict[str, list[tuple[str | None, str]]] = {
     "Intel Chipset INF": [(None, r'(https://downloadmirror\.intel\.com/\d+/'
                                  r'SetupChipset\.exe)')],
 }
+# The artefact's url, where the crawled address isn't a page for people:
+# NVIDIA's is the driver-lookup API (JSON; its DetailsURL is the release's
+# page), and AMD's is the 7800X3D's page, odd for a Radeon owner. A pattern
+# reads the link from the crawled body; a plain URL is used as is.
+LINKS = {
+    "NVIDIA Graphics": re.compile(r'"DetailsURL"\s*:\s*"(https:[^"]+)"'),
+    "AMD Graphics": "https://www.amd.com/en/support/download/drivers.html",
+}
+
+
+def page_link(family: str, url: str, body: str) -> str:
+    link = LINKS.get(family)
+    if isinstance(link, str):
+        return link
+    m = link.search(body) if link else None
+    return m.group(1).replace("\\/", "/") if m else url
+
+
 # drivers.amd.com answers a request without an amd.com Referer with an HTML
 # page (HTTP 200), not the file.
 DOWNLOAD_HEADERS = {"drivers.amd.com": {"Referer": "https://www.amd.com/"}}
@@ -434,7 +452,7 @@ def _crawl_pages(conn, client, run_date, pages, log):
             release_date=date,
             os_raw="Win11 64",
             description_text=desc,
-            url=url,
+            url=page_link(family, url, body),
         )
         n += 1
         n_new += is_new
