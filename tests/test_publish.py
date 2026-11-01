@@ -98,6 +98,31 @@ def test_changes_name_the_silicon_vendor(tmp_path):
     assert move["dir"] == "up"
 
 
+def test_changes_history_merges_a_day_and_keeps_earlier_refreshes(tmp_path):
+    import json
+    from winidx.publish import _changes
+
+    def publish(versions, generated):
+        water = [{"family": f, "version": v, "first_published": None, "published_by": ["x"]}
+                 for f, v in versions.items()]
+        ch = _changes(tmp_path, water, [], generated)
+        for name, data in (("water-level.json", water), ("changes.json", ch)):
+            (tmp_path / name).write_text(json.dumps({"generated": generated, "data": data}))
+        return ch
+
+    publish({"A": "1.0", "B": "1.0"}, "2026-10-30T09:00:00+00:00")   # first: nothing to diff
+    publish({"A": "2.0", "B": "1.0"}, "2026-10-31T09:00:00+00:00")
+    publish({"A": "2.0", "B": "2.0"}, "2026-11-01T09:00:00+00:00")
+    ch = publish({"A": "2.0", "B": "3.0"}, "2026-11-01T18:00:00+00:00")   # same day
+    assert [h["as_of"][:10] for h in ch["history"]] == ["2026-11-01", "2026-10-31"]
+    (b,) = ch["history"][0]["water"]
+    assert (b["family"], b["from"], b["to"]) == ("B", "1.0", "3.0")
+    assert ch["water"] == ch["history"][0]["water"]   # top level stays the latest
+    ch = publish({"A": "2.0", "B": "1.0"}, "2026-11-01T20:00:00+00:00")   # undone same day
+    assert [h["as_of"][:10] for h in ch["history"]] == ["2026-10-31"]
+    assert publish({"A": "2.0", "B": "1.0"}, "2026-11-02T09:00:00+00:00")["history"] == ch["history"]
+
+
 def test_graphics_card_pci_keys(tmp_path):
     from winidx import db, publish
     conn = db.connect(tmp_path / "t.sqlite")
@@ -155,11 +180,25 @@ def test_silicon_lag_separates_vendor_from_silicon():
     boards = [{"board_id": b, "vendor": v} for b, v in ((1, "hp"), (2, "hp"), (3, "msi"), (4, "msi"))]
     lag = {(1, 1): 600, (2, 1): 600, (3, 1): 600, (4, 1): 600,   # everyone slow: the silicon
            (1, 2): 300, (2, 2): 300, (3, 2): 10, (4, 2): 10}     # HP slow: the vendor
-    board_lag = [{"board_id": b, "family_id": f, "lag_days": d} for (b, f), d in lag.items()]
-    out = _silicon_lag(board_lag, families, boards)
+    board_lag = [{"board_id": b, "family_id": f, "lag_days": d, "builds_behind": 1 if d else 0}
+                 for (b, f), d in lag.items()]
+    water = [{"family_id": 1, "version": "6.0", "first_published": "2020-01-01"},
+             {"family_id": 2, "version": "2.0", "first_published": None}]
+    out = _silicon_lag(board_lag, families, boards, water, {1: [((1, 6, 0), "2020-01-01")]})
     rtk = next(r for r in out["silicon_vendors"] if r["silicon_vendor"] == "realtek")
     assert rtk["median_lag_days"] == 600 and rtk["by_board_vendor"]["msi"]["median_lag_days"] == 600
     bv = {r["vendor"]: r for r in out["board_vendors"]}
     assert bv["hp"]["median_excess_days"] > 0 and bv["hp"]["share_behind_family_median"] == 0.5
     assert bv["msi"]["median_excess_days"] <= 0 and bv["msi"]["share_behind_family_median"] == 0
     assert [r["family"] for r in out["families"]] == ["Intel ME", "Realtek Audio"]
+    assert rtk["families_water_over_365d"] == 1 and rtk["median_builds_365d"] == 0
+    assert rtk["median_builds_behind"] == 1 and rtk["by_board_vendor"]["hp"]["families"] == 1
+
+
+def test_builds_behind_counts_releases_up_to_the_water():
+    from winidx.publish import _builds_behind
+    hist = [((1, 1), "2024-01-01"), ((1, 2), None), ((1, 3), "2025-01-01"), ((1, 5), "2026-01-01")]
+    assert _builds_behind(hist, (1, 5)) == 0
+    assert _builds_behind(hist, (1, 2)) == 2
+    assert _builds_behind(hist, (1, 4)) == 1   # a build nobody else lists
+    assert _builds_behind(hist, (1, 9)) == 0   # above the water (a rejected line)

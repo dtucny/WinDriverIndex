@@ -691,3 +691,26 @@ audio, MediaTek)? Same pairings as vendor-lag, split by family.silicon_vendor:
   carry more lag for everyone. That is what the per-row reading controls.
   Many families' lags cluster on one water date (168 days for Realtek Audio
   at most vendors), so medians are lumpy.
+
+Follow-up (consumer review): days behind can't see the silicon vendor's
+pace. At a water nobody moves, every vendor at it reads 0; behind it, lag
+is at least the water's age (Qualcomm's 1,231 for everyone is its
+Bluetooth water from 2023-06). Water age per family is the direct test of
+"stopped shipping":
+
+- Median newest-driver age: MediaTek 82 days, NVIDIA 86, Realtek 104,
+  AMD 167, Intel 186, Qualcomm 622. No Realtek or MediaTek family's water
+  is over a year old; MediaTek's are WU / ASRock / Lenovo builds from
+  2026-02 to 2026-09. So MediaTek's ~100-day lag is not a stagnant water.
+- Stale waters are Intel's (7 of 28 families over a year: WWAN 2,322 days,
+  I211 LAN, WAPI, Killer LAN, Thunderbolt 539), OEM parts (Camera 1,779,
+  USB Audio Firmware Tool, USB-C Connector Manager), Qualcomm Bluetooth,
+  DTS.
+- "Versions behind" does not work from this data: the index holds builds,
+  not releases. Every board vendor's build counts (Realtek Audio: 49
+  distinct line builds a year), parallel lines mix in, and NVIDIA bumps
+  the major each release, so per-line counting collapses it. The crawl
+  overwrites the silicon/WU artefact each run (one row per family), so
+  there's no upstream release history to count from. Published as
+  `builds_behind` / `builds_365d` with that definition; a real releases
+  count needs the upstream history kept.

@@ -44,6 +44,8 @@
   .meta{color:var(--muted);font-size:.85rem;margin-top:.6rem}
   .meta code{font-size:.85em}
   h2{font-size:1.25rem;letter-spacing:-.01em;margin:2.6rem 0 .3rem}
+  #chsel{font:inherit;font-size:.8rem;font-weight:400;margin-left:10px;vertical-align:middle;max-width:100%;
+    padding:4px 8px;border-radius:8px;border:1px solid var(--ring);background:var(--surface);color:var(--ink)}
   h2 + .note{color:var(--ink2);margin:.1rem 0 1.1rem;max-width:64ch}
   section{margin-top:.5rem}
   .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-top:1.4rem}
@@ -80,6 +82,7 @@
   .cell{border-radius:8px;padding:11px 8px;text-align:center;font-variant-numeric:tabular-nums;
     font-size:.9rem;min-width:74px}
   .cell small{display:block;font-size:.68rem;opacity:.7;font-weight:400}
+  .cell.thin{opacity:.4}
   /* heat steps: background + text chosen for contrast in each mode
      (the ramp inverts between modes, so text colour flips too). */
   .c1{background:var(--h1)} .c2{background:var(--h2)} .c3{background:var(--h3)}
@@ -157,7 +160,8 @@
 <section class="tiles" id="tiles"></section>
 
 <div id="chwrap" hidden>
-<h2>What changed in the latest refresh</h2>
+<h2>What changed in a refresh
+  <select id="chsel" aria-label="Refresh" hidden></select></h2>
 <p class="note" id="chnote"></p>
 <div class="card scroll" id="chcard"></div>
 </div>
@@ -178,8 +182,12 @@ all in two years</b>.</p>
 
 <h2>Is it the vendor or the silicon?</h2>
 <p class="note">The same pairings split by whose chip the driver is for. Read
-a row across: lag that is high for every vendor is the silicon's (frequent
-releases nobody keeps up with); a column high on every row is the vendor's.</p>
+a row across: lag that is high for every vendor is the silicon's; a column
+high on every row is the vendor's. Days behind can't see the silicon
+vendor's own pace, though: a chip whose newest driver is years old scores 0
+for every vendor shipping it, and one that releases monthly makes everyone
+look slow. So each row also shows how old its newest driver is: how long
+since <i>anyone</i> shipped a newer one.</p>
 <div class="card scroll" style="padding:14px" id="siwrap"></div>
 <p class="note" style="margin-top:12px" id="sinote"></p>
 
@@ -229,7 +237,7 @@ running them, and the MSIX needs extra steps to install.</p>
     <tr><td><a href="/v1/latest/dashboard.json"><code>/v1/latest/dashboard.json</code></a></td><td>Everything this page renders</td></tr>
     <tr><td><a href="/v1/latest/infs.json"><code>/v1/latest/infs.json</code></a></td><td>INF-level versions (INF file + DriverVer + HWIDs)</td></tr>
     <tr><td><a href="/v1/latest/artefacts.json"><code>/v1/latest/artefacts.json</code></a></td><td>Every indexed driver listing</td></tr>
-    <tr><td><a href="/v1/latest/changes.json"><code>/v1/latest/changes.json</code></a></td><td>What the latest refresh changed</td></tr>
+    <tr><td><a href="/v1/latest/changes.json"><code>/v1/latest/changes.json</code></a></td><td>What the latest refresh changed, and the last 10 in <code>history</code></td></tr>
     <tr><td><a href="/v1/latest/manifest.json"><code>/v1/latest/manifest.json</code></a></td><td>Size + sha256 of every file above</td></tr>
     <tr><td><code>/v1/latest/by-hwid/{hwid}.json</code></td><td>Point lookup by hardware ID (every matching family)</td></tr>
     <tr><td><code>/v1/latest/by-family/{id}.json</code></td><td>One family: water level + every known version</td></tr>
@@ -280,13 +288,14 @@ running them, and the MSIX needs extra steps to install.</p>
     :v==='silicon'?`${SILICON[m.silicon_vendor]||'Chip maker'} site`
     :(LABEL[v]||v);
   // what-changed section (emitted by publish as a diff vs the previous data)
-  const ch=d.changes;
-  if(ch && ((ch.water&&ch.water.length) || ch.new_boards_count)){
-    $('chwrap').hidden=false;
-    $('chnote').textContent=`Between ${(ch.since||'').slice(0,10)} and ${(ch.as_of||'').slice(0,10)}: `
-      +[ch.water&&ch.water.length?`${ch.water.length} water-level ${ch.water.length===1?'move':'moves'}`:null,
+  // changes.history: the last few refreshes, newest first (a refresh is a day)
+  const hist=((d.changes&&(d.changes.history||[d.changes]))||[])
+    .filter(ch=>(ch.water&&ch.water.length)||ch.new_boards_count);
+  const chSummary=ch=>[ch.water&&ch.water.length?`${ch.water.length} water-level ${ch.water.length===1?'move':'moves'}`:null,
         ch.new_boards_count?`${ch.new_boards_count} newly indexed ${ch.new_boards_count===1?'machine':'machines'}`:null]
        .filter(Boolean).join(' · ');
+  const renderCh=ch=>{
+    $('chnote').textContent=`Between ${(ch.since||'').slice(0,10)} and ${(ch.as_of||'').slice(0,10)}: `+chSummary(ch);
     let html='';
     if(ch.water&&ch.water.length){
       const tup=v=>{const runs=String(v||'').match(/\d+(?:\.\d+)+/g)||[];
@@ -315,6 +324,16 @@ running them, and the MSIX needs extra steps to install.</p>
         +(ch.new_boards_count>8?` · …and ${ch.new_boards_count-8} more`:'')+`</div>`;
     }
     $('chcard').innerHTML=html;
+  };
+  if(hist.length){
+    $('chwrap').hidden=false;
+    const sel=$('chsel');
+    if(hist.length>1){
+      sel.hidden=false;
+      sel.innerHTML=hist.map((ch,i)=>`<option value="${i}">${i?'':'latest: '}${esc((ch.as_of||'').slice(0,10))} (${esc(chSummary(ch))})</option>`).join('');
+      sel.onchange=()=>renderCh(hist[+sel.value]);
+    }
+    renderCh(hist[0]);
   }
   const fmt=n=>n.toLocaleString('en-US');
   const yr=dd=>dd>=365?(dd/365).toFixed(1)+' yr':dd+' d';
@@ -361,13 +380,18 @@ running them, and the MSIX needs extra steps to install.</p>
       qualcomm:'Qualcomm',ite:'ITE',aquantia:'Aquantia',asmedia:'ASMedia',dts:'DTS',
       oem:'OEM parts<br><small style="font-weight:400">camera, fingerprint, card reader…</small>'};
     const sstep=v=>v<120?'c1':v<250?'c2':v<500?'c3':v<900?'c4':'c5';
-    $('siwrap').innerHTML=`<table class="heat"><thead><tr><th></th><th>all vendors</th>`+
+    const pc=x=>Math.round(100*x)+'%';
+    $('siwrap').innerHTML=`<table class="heat"><thead><tr><th></th>
+      <th>newest driver<br><small style="font-weight:400">median age</small></th><th>all vendors</th>`+
       order.map(v=>`<th>${LABEL[v]||v}</th>`).join('')+`</tr></thead><tbody>`+
       d.silicon.silicon_vendors.map(r=>`<tr><th style="text-align:right">${SI[r.silicon_vendor]||esc(r.silicon_vendor)}</th>
-        <td><div class="cell ${sstep(r.median_lag_days)}">${r.median_lag_days}<small>${fmt(r.pairings)} pairs</small></div></td>`+
-        order.map(v=>{const c=r.by_board_vendor[v];return c?`<td><div class="cell ${sstep(c.median_lag_days)}">${c.median_lag_days}<small>${fmt(c.pairings)}</small></div></td>`:'<td></td>';}).join('')+
+        <td class="num" style="padding:0 8px">${r.median_water_age_days} d<small style="display:block;opacity:.7">${r.families_water_over_365d} of ${r.families} over 1 yr</small></td>
+        <td><div class="cell ${sstep(r.median_lag_days)}" title="${pc(r.share_current)} of pairings at the newest">${r.median_lag_days}<small>${fmt(r.pairings)}</small></div></td>`+
+        order.map(v=>{const c=r.by_board_vendor[v];return c?`<td><div class="cell ${sstep(c.median_lag_days)}${c.thin?' thin':''}"
+          title="${fmt(c.pairings)} pairings across ${c.families} famil${c.families===1?'y':'ies'}; ${pc(c.share_current)} at the newest">${c.median_lag_days}<small>${fmt(c.pairings)}</small></div></td>`:'<td></td>';}).join('')+
       '</tr>').join('')+`</tbody></table>
-      <div class="legend">median lag days (a pairing is one machine × one driver family):
+      <div class="legend">cell: median lag days, then pairings (one machine × one driver family);
+        faded = under 100 pairings, blank = under 20:
         <i style="background:var(--h1)"></i><span>&lt;120</span>
         <i style="background:var(--h2)"></i><span>120–250</span>
         <i style="background:var(--h3)"></i><span>250–500</span>

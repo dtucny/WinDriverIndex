@@ -8,6 +8,31 @@ published data schema is versioned separately (see `schema_version` in every
 
 ## [Unreleased]
 
+### Added
+
+- `silicon-lag.json` families carry their water's age (`water_age_days`:
+  how long since anyone shipped a newer driver), and silicon vendors
+  the median across their families and `families_water_over_365d`. Days
+  behind alone reads 0 for every vendor at a water nobody moves.
+  `share_current` (pairings at the water) per row and cell.
+- `builds_behind` per pairing (by-board files, `silicon-lag.json`
+  medians) and `builds_365d` per family: distinct builds any source
+  published. They are not silicon releases (board vendors' own builds
+  count, parallel lines mix in), so they don't normalise for a silicon
+  vendor's cadence.
+
+- `changes.json` keeps the last 10 refreshes in `history`, newest first
+  (the top-level fields stay the latest). Publishes on the same day merge
+  into one refresh, as deploy's dated snapshots do. The landing page's
+  "What changed" section has a dropdown to pick a refresh, and
+  `tools/backfill_changes.py` rebuilds the history from the live
+  snapshots (done once, back to 2026-08-28).
+
+### Changed
+
+- The landing page's silicon matrix shows each row's newest-driver age and
+  fades cells under 100 pairings.
+
 ## [0.9.0] — 2026-11-02
 
 ### Added

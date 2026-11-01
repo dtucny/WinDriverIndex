@@ -11,6 +11,7 @@ Published caveat (§7): 'newest' means newest *published by any vendor*, not
 
 from __future__ import annotations
 
+import bisect
 import datetime as dt
 import json
 import re
@@ -80,7 +81,8 @@ def run(conn: sqlite3.Connection, *, log=print) -> dict:
     bios_per_board = bios_data.pop("per_board")
     emit("bios.json", bios_data)
     emit("changes.json", changes)
-    silicon_lag = _silicon_lag(board_lag, families, boards)
+    silicon_lag = _silicon_lag(board_lag, families, boards, water, _release_history(
+        conn, {w["family_id"]: w for w in water}, effective))
     dash = _dashboard(conn, families, water, board_lag, effective, bios_data)
     dash["changes"] = changes
     dash["silicon"] = _dashboard_silicon(silicon_lag)
@@ -186,12 +188,19 @@ DOWNLOAD_HINTS = {
 }
 
 
+# Refreshes kept in changes.json's history (the landing page's dropdown).
+CHANGES_HISTORY = 10
+
+
 def _changes(out, water, boards, generated,
              silicon_of: dict[str, str] | None = None) -> dict | None:
     """What this publish changed vs the previously published data: water-level
-    movements and newly indexed machines. A publish that changes nothing
-    carries the last non-empty delta forward (with its original dates), so
-    the landing page keeps showing the latest meaningful refresh."""
+    movements and newly indexed machines, plus the last CHANGES_HISTORY
+    refreshes. A refresh is a day, as deploy's dated snapshots are: a
+    second publish the same day merges into that day's entry (re-running
+    publish while developing would otherwise fill the history with
+    fragments). A publish that changes nothing keeps the history as it is,
+    so the latest entry stays the latest meaningful refresh."""
     def _old(name):
         try:
             return json.loads((out / name).read_text())
@@ -201,41 +210,77 @@ def _changes(out, water, boards, generated,
                   _old("changes.json"))
     if not ow:
         return None
-    prev = {w["family"]: w for w in ow["data"]}
+    history = []
+    if oc and oc.get("data"):
+        history = oc["data"].get("history") or [
+            {k: v for k, v in oc["data"].items() if k != "history"}]
+    delta = _delta(ow["data"], ob["data"] if ob else None, water, boards,
+                   ow["generated"], generated, silicon_of)
+    if delta:
+        if history and history[0]["as_of"][:10] == generated[:10]:
+            delta = _merge_deltas(history[0], delta)
+            history = history[1:]
+        history = [delta, *history] if delta else history
+    history = history[:CHANGES_HISTORY]
+    return {**history[0], "history": history} if history else None
+
+
+def _move_dir(frm, to):
+    """'down' is not a vendor rollback: it means the previous top listing
+    was reclassified into a more specific family (INF evidence) or
+    respelled to its INF-canonical version."""
+    fv = versions.parse(frm) if frm else None
+    tv = versions.parse(to)
+    if fv and fv.tuple and tv.tuple:
+        a, b = versions.compare_key(tv), versions.compare_key(fv)
+        return "up" if a > b else "down" if a < b else "same"
+    return None
+
+
+def _delta(old_water, old_boards, water, boards, since, as_of, silicon_of) -> dict | None:
+    prev = {w["family"]: w for w in old_water}
     moves = []
     for w in water:
         p = prev.get(w["family"])
         if p is None or p["version"] != w["version"]:
-            fv = versions.parse(p["version"]) if p else None
-            tv = versions.parse(w["version"])
-            # 'down' is not a vendor rollback: it means the previous top
-            # listing was reclassified into a more specific family (INF
-            # evidence) or respelled to its INF-canonical version
-            dirn = None
-            if fv and fv.tuple and tv.tuple:
-                dirn = ("up" if versions.compare_key(tv) > versions.compare_key(fv)
-                        else "down" if versions.compare_key(tv) < versions.compare_key(fv)
-                        else "same")
             moves.append({"family": w["family"],
                           "from": p["version"] if p else None,
-                          "to": w["version"], "dir": dirn,
+                          "to": w["version"], "dir": _move_dir(p and p["version"], w["version"]),
                           "date": w["first_published"],
                           "published_by": w["published_by"],
                           # names the site behind a 'silicon' source (AMD,
                           # Intel, NVIDIA, Realtek) on the landing page
                           "silicon_vendor": (silicon_of or {}).get(w["family"])})
     new_boards = []
-    if ob:
-        old_ids = {b["board_id"] for b in ob["data"]}
+    if old_boards:
+        old_ids = {b["board_id"] for b in old_boards}
         new_boards = [{"vendor": b["vendor"], "name": b["name"],
                        "board_id": b["board_id"]}
                       for b in boards if b["board_id"] not in old_ids]
     if not moves and not new_boards:
-        return oc["data"] if oc and oc.get("data") else None
-    return {"since": ow["generated"], "as_of": generated,
+        return None
+    return {"since": since, "as_of": as_of,
             "water": sorted(moves, key=lambda m: m["family"]),
             "new_boards_count": len(new_boards),
             "new_boards": new_boards[:20]}
+
+
+def _merge_deltas(older: dict, newer: dict) -> dict | None:
+    """One day's publishes as one refresh: each family from its first 'from'
+    to its last 'to' (a move undone the same day drops out)."""
+    moves = {m["family"]: m for m in older["water"]}
+    for m in newer["water"]:
+        o = moves.get(m["family"])
+        moves[m["family"]] = {**m, "from": o["from"], "dir": _move_dir(o["from"], m["to"])} if o else m
+    water = [m for m in moves.values() if m["from"] != m["to"]]
+    seen = {b["board_id"] for b in older["new_boards"]}
+    boards = older["new_boards"] + [b for b in newer["new_boards"] if b["board_id"] not in seen]
+    n_boards = older["new_boards_count"] + newer["new_boards_count"]
+    if not water and not n_boards:
+        return None
+    return {"since": older["since"], "as_of": newer["as_of"],
+            "water": sorted(water, key=lambda m: m["family"]),
+            "new_boards_count": n_boards, "new_boards": boards[:20]}
 
 
 def _effective_versions(conn) -> dict[int, versions.ParsedVersion]:
@@ -455,6 +500,7 @@ def _lag(conn, families, water, effective) -> tuple[list[dict], list[dict]]:
                                > versions.compare_key(effective[best[key]["artefact_id"]])):
             best[key] = r
 
+    history = _release_history(conn, level, effective)
     board_lag = []
     for (board_id, fid), r in best.items():
         w = level[fid]
@@ -480,7 +526,9 @@ def _lag(conn, families, water, effective) -> tuple[list[dict], list[dict]]:
                  # since the water speaks marketing (32.0.15.9186 = 591.86)
                  "listed_equiv": _equiv(families[fid]["name"], r["version_raw"]),
                  "effective_major": (effective[r["artefact_id"]].tuple or (None,))[0],
-                 "listed_date": r["listed_date"], "lag_days": lag}
+                 "listed_date": r["listed_date"], "lag_days": lag,
+                 "builds_behind": _builds_behind(
+                     history[fid], versions.compare_key(effective[r["artefact_id"]]))}
         board_lag.append(entry)
         if lag is not None:
             per_board[board_id].append(lag)
@@ -503,75 +551,148 @@ def _lag(conn, families, water, effective) -> tuple[list[dict], list[dict]]:
     return board_lag, vendor_lag
 
 
-def _lag_stats(lags: list[int]) -> dict:
-    lags = sorted(lags)
-    return {"pairings": len(lags),
-            "median_lag_days": lags[len(lags) // 2] if lags else None,
-            "p90_lag_days": lags[int(len(lags) * 0.9)] if lags else None,
-            "share_over_365d": round(sum(l > 365 for l in lags) / len(lags), 3)
-                               if lags else None}
+def _release_history(conn, level, effective) -> dict[int, list[tuple]]:
+    """family_id -> [(version sort key, first date)], ascending: every
+    distinct version any source has published up to the family's water
+    level (versions above it are the outlier lines the water rejected)."""
+    first: dict[int, dict[tuple, str | None]] = defaultdict(dict)
+    for r in conn.execute(
+            "SELECT artefact_id, family_id, release_date FROM artefact"
+            " WHERE kind = 'driver' AND is_beta = 0 AND family_id IS NOT NULL"):
+        e = effective[r["artefact_id"]]
+        if r["family_id"] not in level or not e.tuple:
+            continue
+        k, d = versions.compare_key(e), r["release_date"]
+        seen = first[r["family_id"]]
+        if k not in seen or (d and (seen[k] is None or d < seen[k])):
+            seen[k] = d
+    out = {}
+    for fid, w in level.items():
+        top = (1, *w["version_normalised"])
+        out[fid] = sorted((k, d) for k, d in first.get(fid, {}).items() if k <= top)
+    return out
 
 
-def _silicon_lag(board_lag, families, boards) -> dict:
+def _builds_behind(history: list[tuple], key: tuple) -> int:
+    """Distinct builds any source published above a listing, up to the
+    water. Not silicon releases: every board vendor's own build counts
+    (Realtek audio has dozens of OEM builds a year) and parallel lines mix
+    in, so it can't normalise for a silicon vendor's cadence; the index
+    keeps no upstream release history to count real releases from."""
+    return len(history) - bisect.bisect_right(history, key, key=lambda h: h[0])
+
+
+def _lag_stats(pairs: list[tuple[int, int]]) -> dict:
+    """(lag days, versions behind) pairings -> summary."""
+    lags = sorted(p[0] for p in pairs)
+    behind = sorted(p[1] for p in pairs)
+    n = len(pairs)
+    return {"pairings": n,
+            "median_lag_days": lags[n // 2] if n else None,
+            "p90_lag_days": lags[int(n * 0.9)] if n else None,
+            "share_over_365d": round(sum(l > 365 for l in lags) / n, 3) if n else None,
+            "median_builds_behind": behind[n // 2] if n else None,
+            "share_current": round(sum(v == 0 for v in behind) / n, 3) if n else None}
+
+
+def _silicon_lag(board_lag, families, boards, water, history) -> dict:
     """vendor-lag.json's pairings by family and by silicon vendor, each split
     by board vendor, so a vendor's median can be told apart from the
     families it ships: is HP's lag HP's, or Realtek audio's on every vendor?
     board_vendors[].median_excess_days answers that directly: the median of
     each pairing's lag minus its family's median across all vendors (0 =
-    as current as everyone else on the same families)."""
-    vendor_of = {b["board_id"]: b["vendor"] for b in boards}
-    pairs = [(vendor_of[e["board_id"]], e["family_id"], e["lag_days"])
-             for e in board_lag if e["lag_days"] is not None]
-    by_fam: dict[int, dict[str, list[int]]] = defaultdict(lambda: defaultdict(list))
-    for v, fid, lag in pairs:
-        by_fam[fid][v].append(lag)
+    as current as everyone else on the same families).
 
-    def split(per_vendor: dict[str, list[int]]) -> dict:
-        allv = [l for ls in per_vendor.values() for l in ls]
+    Days behind can't see the silicon vendor's own pace: a family whose
+    water never moves reads 0 for everyone at it (and at least its age for
+    everyone behind it), and one that releases monthly makes every vendor
+    look slow. So each family also carries its water's age: how long since
+    anyone shipped a newer driver at all. builds_behind / builds_365d count
+    builds any source published (see _builds_behind), not releases."""
+    today = dt.date.today()
+    year_ago = (today - dt.timedelta(days=365)).isoformat()
+    level = {w["family_id"]: w for w in water}
+    vendor_of = {b["board_id"]: b["vendor"] for b in boards}
+    pairs = [(vendor_of[e["board_id"]], e["family_id"], e["lag_days"], e["builds_behind"])
+             for e in board_lag if e["lag_days"] is not None]
+    by_fam: dict[int, dict[str, list]] = defaultdict(lambda: defaultdict(list))
+    for v, fid, lag, vb in pairs:
+        by_fam[fid][v].append((lag, vb))
+
+    def split(per_vendor: dict[str, list]) -> dict:
+        allv = [p for ps in per_vendor.values() for p in ps]
         return {**_lag_stats(allv), "board_vendors": len(per_vendor),
-                "by_board_vendor": {v: _lag_stats(ls) for v, ls in sorted(per_vendor.items())}}
+                "by_board_vendor": {v: _lag_stats(ps) for v, ps in sorted(per_vendor.items())}}
+
+    def cadence(fid) -> dict:
+        w = level[fid]
+        wd = w["first_published"]
+        return {"water_version": w["version"], "water_first_published": wd,
+                "water_age_days": (today - dt.date.fromisoformat(wd)).days if wd else None,
+                "builds_365d": sum(1 for _k, d in history.get(fid, ()) if d and d >= year_ago),
+                "builds_total": len(history.get(fid, ()))}
 
     fam_rows = []
     for fid, pv in by_fam.items():
         f = families[fid]
         fam_rows.append({"family_id": fid, "family": f["name"],
                          "silicon_vendor": f["silicon_vendor"],
-                         "component": f["component"], **split(pv)})
+                         "component": f["component"], **cadence(fid), **split(pv)})
     fam_rows.sort(key=lambda r: (-r["pairings"], r["family"]))
 
-    by_si: dict[str, dict[str, list[int]]] = defaultdict(lambda: defaultdict(list))
-    n_fams: dict[str, int] = defaultdict(int)
-    for fid, pv in by_fam.items():
-        si = families[fid]["silicon_vendor"]
-        n_fams[si] += 1
-        for v, ls in pv.items():
-            by_si[si][v] += ls
-    si_rows = sorted(({"silicon_vendor": si, "families": n_fams[si], **split(pv)}
-                      for si, pv in by_si.items()), key=lambda r: -r["pairings"])
+    by_si: dict[str, dict[str, list]] = defaultdict(lambda: defaultdict(list))
+    si_fams: dict[str, list[dict]] = defaultdict(list)
+    cell_fams: dict[tuple[str, str], int] = defaultdict(int)
+    for r in fam_rows:
+        si = r["silicon_vendor"]
+        si_fams[si].append(r)
+        for v, ps in by_fam[r["family_id"]].items():
+            by_si[si][v] += ps
+            cell_fams[(si, v)] += 1
+    si_rows = []
+    for si, pv in by_si.items():
+        fs = si_fams[si]
+        ages = [f["water_age_days"] for f in fs if f["water_age_days"] is not None]
+        row = {"silicon_vendor": si, "families": len(fs),
+               # per family, not per pairing: is the silicon vendor shipping?
+               "median_water_age_days": round(statistics.median(ages)) if ages else None,
+               "families_water_over_365d": sum(a > 365 for a in ages),
+               "median_builds_365d": statistics.median(f["builds_365d"] for f in fs),
+               **split(pv)}
+        for v, st in row["by_board_vendor"].items():
+            st["families"] = cell_fams[(si, v)]
+        si_rows.append(row)
+    si_rows.sort(key=lambda r: -r["pairings"])
 
     # the true median: the upper one (as elsewhere) would make the slower
     # half of an evenly split family its baseline
-    fam_median = {fid: statistics.median(l for ls in pv.values() for l in ls)
+    fam_median = {fid: (statistics.median(p[0] for ps in pv.values() for p in ps),
+                        statistics.median(p[1] for ps in pv.values() for p in ps))
                   for fid, pv in by_fam.items()}
-    excess: dict[str, list[int]] = defaultdict(list)
-    for v, fid, lag in pairs:
-        excess[v].append(round(lag - fam_median[fid]))
+    excess: dict[str, list[tuple[int, int]]] = defaultdict(list)
+    for v, fid, lag, vb in pairs:
+        md, mv = fam_median[fid]
+        excess[v].append((round(lag - md), round(vb - mv)))
     bv_rows = []
     for v, ex in sorted(excess.items()):
-        ex.sort()
+        days, vers = sorted(e[0] for e in ex), sorted(e[1] for e in ex)
         bv_rows.append({"vendor": v, "pairings": len(ex),
-                        "median_excess_days": ex[len(ex) // 2],
+                        "median_excess_days": days[len(ex) // 2],
+                        "median_excess_builds": vers[len(ex) // 2],
                         # share of the vendor's pairings behind the family's
                         # all-vendor median
-                        "share_behind_family_median": round(sum(e > 0 for e in ex) / len(ex), 3)})
+                        "share_behind_family_median": round(sum(e > 0 for e in days) / len(ex), 3)})
     return {"silicon_vendors": si_rows, "families": fam_rows, "board_vendors": bv_rows}
 
 
 # The landing page's silicon × board-vendor matrix leaves out silicon vendors
 # with too few pairings to say anything (ASPEED, AMI: a handful of server
-# boards), and cells too thin to read a median from.
+# boards), and cells too thin to read a median from; cells under
+# DASH_CELL_FIRM_PAIRINGS are shown greyed (MSI's and Gigabyte's "OEM parts"
+# are one USB audio tool on a few dozen boards).
 DASH_SILICON_MIN_PAIRINGS = 100
 DASH_CELL_MIN_PAIRINGS = 20
+DASH_CELL_FIRM_PAIRINGS = 100
 
 
 def _dashboard_silicon(silicon_lag) -> dict:
@@ -579,10 +700,13 @@ def _dashboard_silicon(silicon_lag) -> dict:
     for r in silicon_lag["silicon_vendors"]:
         if r["pairings"] < DASH_SILICON_MIN_PAIRINGS:
             continue
-        rows.append({k: r[k] for k in ("silicon_vendor", "families", "pairings",
-                                       "median_lag_days", "share_over_365d")}
+        rows.append({k: r[k] for k in (
+            "silicon_vendor", "families", "pairings", "median_lag_days", "share_over_365d",
+            "share_current", "median_water_age_days", "families_water_over_365d")}
                     | {"by_board_vendor": {
-                        v: {"median_lag_days": s["median_lag_days"], "pairings": s["pairings"]}
+                        v: {k: s[k] for k in ("median_lag_days", "share_current",
+                                              "pairings", "families")}
+                           | {"thin": s["pairings"] < DASH_CELL_FIRM_PAIRINGS}
                         for v, s in r["by_board_vendor"].items()
                         if s["pairings"] >= DASH_CELL_MIN_PAIRINGS}})
     return {"silicon_vendors": rows, "board_vendors": silicon_lag["board_vendors"]}
