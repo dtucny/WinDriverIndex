@@ -81,3 +81,58 @@ def test_catalog_throttle_retries_and_never_returns_refusal(monkeypatch, tmp_pat
     with pytest.raises(w.CatalogThrottled):
         w._search(Client([refusal] * 3), "PCI\\VEN_2")
     assert not (tmp_path / "wu_PCI_VEN_2.html").exists()   # refusal not kept
+
+
+def test_silicon_installer_link_follows_listed_version():
+    from winidx.vendors.silicon import DOWNLOADS, download_link
+    amd = ('<a href="https://drivers.amd.com/drivers/whql-amd-software-adrenalin-edition-'
+           '26.10.1-win11-a.exe">x</a> <a href="https://drivers.amd.com/drivers/installer/'
+           '26.20/beta/amd-software-adrenalin-edition-26.10.2-minimalsetup-261029_web.exe">'
+           '</a> <a href="https://drivers.amd.com/drivers/whql-amd-software-adrenalin-'
+           'edition-26.10.2-win11-a.exe">')
+    (_, a), (page_b, b) = DOWNLOADS["AMD Graphics"]
+    assert download_link(a, amd, "26.10.2").endswith("26.10.2-win11-a.exe")
+    assert download_link(b, amd, "26.10.2") is None and page_b
+    nv = '{"Version" : "621.01", "DownloadURL" : "https://us.download.nvidia.com/Windows/621.01/621.01-desktop-win10-win11-64bit-international-dch-whql.exe"}'
+    ((_, pat),) = DOWNLOADS["NVIDIA Graphics"]
+    assert download_link(pat, nv, "621.01").startswith("https://us.download")
+    assert download_link(pat, nv, "616.92") is None
+
+
+def test_silicon_payload_infs_are_tagged_silicon(tmp_path):
+    conn = db.connect(tmp_path / "t.sqlite")
+    fid = conn.execute("INSERT INTO family (name, silicon_vendor, component)"
+                       " VALUES ('NVIDIA Graphics', 'nvidia', 'graphics')").lastrowid
+    db.upsert_upstream_payload(conn, "2026-11-01", family="NVIDIA Graphics",
+                               version="621.01", url="https://x/621.01.exe",
+                               published="2026-10-21")
+    conn.execute("UPDATE upstream_payload SET sha256 = 'p1'")
+    conn.execute("INSERT INTO inf VALUES ('p1', 'Display.Driver/nv_dispsig.inf', 'i1',"
+                 " 'NVIDIA', 'Display', '2026-10-17', '32.0.16.2101',"
+                 " '[\"PCI\\\\VEN_10DE&DEV_2782\"]')")
+    (row,) = publish._infs(conn)
+    assert row["sources"] == ["silicon"] and row["artefact_ids"] == []
+    assert row["family_ids"] == [fid] and row["first_published"] == "2026-10-21"
+    # a later crawl that links the same installer keeps its hash
+    db.upsert_upstream_payload(conn, "2026-11-02", family="NVIDIA Graphics",
+                               version="621.01", url="https://x/621.01.exe",
+                               published=None)
+    r = conn.execute("SELECT sha256, published, last_seen FROM upstream_payload").fetchone()
+    assert tuple(r) == ("p1", "2026-10-21", "2026-11-02")
+
+
+def test_silicon_row_keeps_earlier_upstream_date(tmp_path):
+    conn = db.connect(tmp_path / "t.sqlite")
+    db.upsert_upstream_payload(conn, "2026-11-01", family="AMD Graphics",
+                               version="32.0.32015.12012", url="https://x/a.exe",
+                               published="2026-10-30")
+    conn.execute("UPDATE upstream_payload SET sha256 = 'p1'")
+    conn.execute("INSERT INTO inf VALUES ('p1', 'amdfdans/AMDFDANS.inf', 'i1', 'AMD',"
+                 " 'SoftwareComponent', '2026-06-18', '1.4.41.0',"
+                 " '[\"SWC\\\\VEN_1002&AID_0001\"]')")
+    db.upsert_upstream_inf(conn, "2026-10-31", source="wucatalog", inf_name="amdfdans.inf",
+                           driver_ver="1.4.41.0", published="2026-06-17",
+                           hwids=["SWC\\VEN_1002&AID_0001"])
+    (row,) = publish._infs(conn)
+    assert row["sources"] == ["silicon", "wucatalog"]
+    assert row["first_published"] == "2026-06-17" and row["driver_date"] == "2026-06-18"

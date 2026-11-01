@@ -119,6 +119,34 @@ CREATE TABLE IF NOT EXISTS upstream_inf (
     PRIMARY KEY (source, inf_name, driver_ver)
 );
 
+-- Installers behind silicon-vendor releases (NVIDIA, AMD, Intel download
+-- pages). The upstream artefact row is one per family and moves on with each
+-- release, so its payloads live here, one row per installer (AMD ships two
+-- per release). Fetched and
+-- extracted like vendor payloads; their INFs reach infs.json as
+-- sources 'silicon' and nothing else (no family HWIDs, no INF cross-check).
+CREATE TABLE IF NOT EXISTS upstream_payload (
+    family      TEXT NOT NULL,   -- family name, as the silicon artefact's id
+    version     TEXT NOT NULL,   -- the silicon artefact's version_raw
+    url         TEXT NOT NULL,
+    published   TEXT,
+    sha256      TEXT,            -- computed on fetch
+    file_size   INTEGER,
+    first_seen  TEXT NOT NULL,
+    last_seen   TEXT NOT NULL,
+    PRIMARY KEY (family, url)
+);
+
+-- Device names display INFs give their hardware IDs (the models section's
+-- %key% resolved through [Strings]): 'PCI\VEN_10DE&DEV_2782' is "NVIDIA
+-- GeForce RTX 4070 Ti". Matches graphics-card boards to PCI IDs.
+CREATE TABLE IF NOT EXISTS inf_device_name (
+    inf_sha256  TEXT NOT NULL,
+    hwid        TEXT NOT NULL,   -- as the INF binds it, upper case
+    name        TEXT NOT NULL,
+    PRIMARY KEY (inf_sha256, hwid)
+);
+
 -- Payloads 7-Zip could not open: corrupt at the vendor (hash matches what
 -- they publish), so retrying every run only re-fails. Rows are skipped by
 -- extract until `winidx extract --retry-quarantined` clears them.

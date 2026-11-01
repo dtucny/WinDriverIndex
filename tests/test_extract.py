@@ -88,3 +88,16 @@ def test_all_failures_is_systemic(tmp_path, monkeypatch):
     _add_payload(conn, "c" * 64, b"garbage")
     stats = extract.run(conn, log=lambda *_: None)
     assert stats["failed"] == 1            # nothing succeeded -> stage fails
+
+
+def test_display_inf_device_names():
+    text = ('[Version]\r\nClass=Display\r\n[Models]\r\n'
+            '%NVIDIA_DEV.2782% = Section001, PCI\\VEN_10DE&DEV_2782\r\n'
+            '"%AMD744C.1%" = ati2mtag_N, PCI\\VEN_1002&DEV_744C&REV_C8 ; XTX\r\n'
+            '[Strings]\r\nNVIDIA_DEV.2782 = "NVIDIA GeForce RTX 4070 Ti"\r\n'
+            'AMD744C.1 = "AMD Radeon RX 7900 XTX"\r\n'
+            '[Strings.0407]\r\nNVIDIA_DEV.2782 = "localised"\r\n')
+    assert _parse_inf(text.encode())["names"] == {
+        "PCI\\VEN_10DE&DEV_2782": "NVIDIA GeForce RTX 4070 Ti",
+        "PCI\\VEN_1002&DEV_744C&REV_C8": "AMD Radeon RX 7900 XTX"}
+    assert _parse_inf(text.replace("Display", "Net").encode())["names"] == {}

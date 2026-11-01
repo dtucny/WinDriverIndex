@@ -32,6 +32,9 @@ _DRIVER_VER = re.compile(r"^\s*DriverVer\s*=\s*(\d+)/(\d+)/(\d+)\s*(?:,\s*([\w.]
                          re.IGNORECASE | re.MULTILINE)
 _PROVIDER = re.compile(r"^\s*Provider\s*=\s*(.+?)\s*$", re.IGNORECASE | re.MULTILINE)
 _CLASS = re.compile(r"^\s*Class\s*=\s*(\S+)", re.IGNORECASE | re.MULTILINE)
+_SECTION = re.compile(r"^\s*\[([^\]]+)\]", re.MULTILINE)
+_STRING = re.compile(r'^\s*([\w.]+)\s*=\s*"([^"]*)"', re.MULTILINE)
+_MODEL = re.compile(r'^[ \t]*"?%([\w.]+)%"?[ \t]*=[^,;\r\n]+,([^;\r\n]+)', re.MULTILINE)
 _HWID = re.compile(
     r"\b((?:PCI|USB|HDAUDIO|INTELAUDIO|ACPI|BTHENUM|BTH|SWC|MTP|SD|UEFI)"
     r"\\[A-Za-z0-9][A-Za-z0-9_&.\-]*)", re.IGNORECASE)
@@ -46,7 +49,8 @@ def run(conn: sqlite3.Connection, *, limit: int | None = None,
     quarantined = {r[0] for r in conn.execute("SELECT payload_sha256 FROM payload_quarantine")}
     todo = [r[0] for r in conn.execute(
         "SELECT DISTINCT sha256 FROM artefact"
-        " WHERE sha256 IS NOT NULL AND kind = 'driver'")
+        " WHERE sha256 IS NOT NULL AND kind = 'driver'"
+        " UNION SELECT sha256 FROM upstream_payload WHERE sha256 IS NOT NULL")
         if r[0] not in done and r[0] not in quarantined]
     if limit:
         todo = todo[:limit]
@@ -84,6 +88,11 @@ def run(conn: sqlite3.Connection, *, limit: int | None = None,
                     (sha, f["path"], f["sha256"], meta["provider"], meta["class"],
                      meta["driver_date"], meta["driver_ver"],
                      json.dumps(meta["hwids"])))
+                conn.execute("DELETE FROM inf_device_name WHERE inf_sha256 = ?",
+                             (f["sha256"],))
+                conn.executemany(
+                    "INSERT OR IGNORE INTO inf_device_name VALUES (?, ?, ?)",
+                    [(f["sha256"], h, n) for h, n in meta["names"].items()])
         n_ok += 1
         n_noinf += not infs
         log(f"extracted {sha[:12]}: {len(files)} inf/sys files, {len(infs)} INFs")
@@ -178,9 +187,36 @@ def _parse_inf(data: bytes) -> dict:
     prov = _PROVIDER.search(text)
     cls = _CLASS.search(text)
     return {
+        "names": (_device_names(text)
+                  if cls and cls.group(1).lower() == "display" else {}),
         "provider": prov.group(1).strip('"') if prov else None,
         "class": cls.group(1) if cls else None,
         "driver_date": driver_date,
         "driver_ver": driver_ver,
         "hwids": hwids,
     }
+
+
+def _device_names(text: str) -> dict[str, str]:
+    """{PCI hardware ID: device name} from a display INF: models lines
+    ('%NVIDIA_DEV.2782% = Section, PCI\\VEN_10DE&DEV_2782') resolved through
+    the unlocalised [Strings] section. Graphics cards are named by chip, and
+    this is where the chip's marketing name meets its PCI ID."""
+    strings: dict[str, str] = {}
+    heads = list(_SECTION.finditer(text))
+    for i, m in enumerate(heads):
+        if m.group(1).strip().lower() == "strings":
+            start = m.end()
+            end = heads[i + 1].start() if i + 1 < len(heads) else len(text)
+            strings.update((k.lower(), v.strip())
+                           for k, v in _STRING.findall(text[start:end]))
+    out: dict[str, str] = {}
+    for key, ids in _MODEL.findall(text):
+        name = strings.get(key.lower())
+        if not name:
+            continue
+        for h in ids.split(","):
+            h = h.strip().upper()
+            if h.startswith("PCI\\"):
+                out.setdefault(h, name)
+    return out

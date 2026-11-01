@@ -115,6 +115,22 @@ def upsert_upstream_inf(conn: sqlite3.Connection, run_date: str, *,
          title, url, run_date))
 
 
+def upsert_upstream_payload(conn: sqlite3.Connection, run_date: str, *,
+                            family: str, version: str, url: str,
+                            published: str | None) -> None:
+    """One row per installer; last_seen marks the ones the latest crawl
+    linked. Installers are named per release, so a URL carries one version."""
+    conn.execute(
+        """INSERT INTO upstream_payload (family, version, url, published,
+                                         first_seen, last_seen)
+           VALUES (?, ?, ?, ?, ?, ?)
+           ON CONFLICT (family, url) DO UPDATE SET
+             version = excluded.version,
+             published = COALESCE(excluded.published, published),
+             last_seen = excluded.last_seen""",
+        (family, version, url, published, run_date, run_date))
+
+
 def prune_upstream_inf(conn: sqlite3.Connection, run_date: str, source: str) -> int:
     """Drop rows a source no longer reports (same rule as upstream artefacts)."""
     return conn.execute("DELETE FROM upstream_inf WHERE source = ? AND last_seen < ?",

@@ -27,7 +27,7 @@ BROWSER_HEADERS = True   # amd.com / intel.com want full browser identity
 PAGES: list[tuple[str, str, str]] = [
     ("AMD Chipset",
      "https://www.amd.com/en/support/downloads/drivers.html/chipsets/am5/x670.html",
-     r"Chipset_Software_(\d+(?:\.\d+)+)"),
+     r"[Cc]hipset_[Ss]oftware_(\d+(?:\.\d+)+)"),   # AMD_… until 2026-09, amd_… since
     # Adrenalin from a representative Ryzen CPU page — the honest upstream
     # for the AMD iGPU family (board vendors list internal-scheme or even
     # date-string versions; AMD's marketing scheme is YY.M.P).
@@ -63,7 +63,57 @@ PAGES: list[tuple[str, str, str]] = [
      r"\b(\d{2}\.\d{2}\.\d{3}\.\d{4})\b"),
 ]
 
+# Installer links for each release's INFs (upstream_payload): (page, regex),
+# page None = the family's own page above. '{ver}' is the version that page
+# lists (AMD's marketing 26.10.2, not the Driver Store version). AMD splits
+# Adrenalin in two: '-win11-a' carries the older display branch (RDNA2 and
+# the Raphael iGPU, 32.0.21045.x in 26.10.2) and is the one CPU pages like
+# the 7800X3D's link; '-win11-b' carries RDNA3/4 (32.0.32015.x) and is
+# linked from RDNA3/4 product pages. Both pages also link the previous
+# release and a web installer with no drivers in it, hence the version.
+# AMD's chipset package unpacks at run time (no static INFs) and Killer
+# Suite is an application, so neither is fetched. Intel's Wi-Fi, Bluetooth
+# and chipset INF installers are WiX Burn bundles whose INFs sit three
+# wrappers deep (PE overlay -> attached cab -> extensionless files), beyond
+# what extract unpacks; board vendors repackage those drivers anyway.
+_AMD_RX9070XT = ("https://www.amd.com/en/support/downloads/drivers.html/graphics/"
+                 "radeon-rx/radeon-rx-9000-series/amd-radeon-rx-9070-xt.html")
+_ADRENALIN = (r'(https://drivers\.amd\.com/drivers/whql-amd-software-'
+              r'adrenalin-edition-{ver}-win11-%s\.exe)')
+DOWNLOADS: dict[str, list[tuple[str | None, str]]] = {
+    "NVIDIA Graphics": [(None, r'"DownloadURL"\s*:\s*"(https://[^"]+/{ver}/[^"]+\.exe)"')],
+    "AMD Graphics": [(None, _ADRENALIN % "a"), (_AMD_RX9070XT, _ADRENALIN % "b")],
+    "Intel VGA": [(None, r'(https://downloadmirror\.intel\.com/\d+/gfx_win_[\d.]+\.exe)')],
+}
+# drivers.amd.com answers a request without an amd.com Referer with an HTML
+# page (HTTP 200), not the file.
+DOWNLOAD_HEADERS = {"drivers.amd.com": {"Referer": "https://www.amd.com/"}}
+
 _DATE = re.compile(r"(\d{1,2})/(\d{1,2})/(\d{4})")
+
+
+def download_link(pattern: str, body: str, listed: str) -> str | None:
+    m = re.search(pattern.replace("{ver}", re.escape(listed)), body)
+    return m.group(1) if m else None
+
+
+def _record_downloads(conn, client, run_date, family, body, listed, ver, date, log):
+    for i, (page, pattern) in enumerate(DOWNLOADS[family]):
+        if page:
+            snap = "si_" + re.sub(r"[^a-z0-9]+", "_", family.lower()) + f"_dl{i}.html"
+            try:
+                page_body = client.get(page, snapshot=snap).content.decode("utf-8", "replace")
+            except Exception as exc:
+                log(f"  silicon MISS {family}: installer page failed — {str(exc)[:60]}")
+                continue
+        else:
+            page_body = body
+        link = download_link(pattern, page_body, listed)
+        if link:
+            db.upsert_upstream_payload(conn, run_date, family=family,
+                                       version=ver, url=link, published=date)
+        else:
+            log(f"  silicon MISS {family}: installer link {i} for {listed} not found")
 
 
 def crawl(conn: sqlite3.Connection, client, run_date: str,
@@ -280,7 +330,7 @@ def _crawl_pages(conn, client, run_date, pages, log):
             continue
         # a page can carry both '24.60.0' and '24.60.0.3' — take the max
         m = max(matches, key=lambda x: versions.compare_key(versions.parse(x.group(1))))
-        ver = m.group(1)
+        ver = listed = m.group(1)
         # best-effort release date near the version match: ISO first (AMD),
         # then US format (Intel), within a generous window
         window = body[m.end():m.end() + 3000]
@@ -333,6 +383,9 @@ def _crawl_pages(conn, client, run_date, pages, log):
         n += 1
         n_new += is_new
         log(f"  silicon: {family:20} -> {ver} ({date or 'no date'})")
+        if family in DOWNLOADS:
+            _record_downloads(conn, client, run_date, family, body, listed, ver,
+                              date, log)
         conn.commit()
     log(f"silicon: {n} families matched, {n_new} new")
     return {"boards": 0, "listings": n, "new_artefacts": n_new}

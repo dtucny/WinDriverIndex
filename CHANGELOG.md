@@ -8,6 +8,25 @@ published data schema is versioned separately (see `schema_version` in every
 
 ## [Unreleased]
 
+### Added
+
+- `infs.json` rows from silicon-vendor installers (`sources: ["silicon"]`):
+  the release NVIDIA, AMD (both Adrenalin installers: `-win11-a` for the
+  older display branch, `-win11-b` for RDNA3/4) and Intel graphics list
+  is downloaded and its INFs extracted. Tracked per installer in the new
+  `upstream_payload` table; never counted for family HWIDs, vendor lag or
+  the INF conflict check.
+- `boards.json` `pci` for graphics cards: the GPU's PCI device IDs (from
+  display INFs' device names, new `inf_device_name` table) and the card
+  maker's subsystem vendor ID.
+
+### Fixed
+
+- AMD's own chipset version was stuck at 8.08.12.551 since 2026-09: AMD
+  renamed the installer `amd_chipset_software_…` (lower case) and the page
+  pattern matched nothing. Now 8.09.28.1124. (The family water follows
+  board vendors' 7.x package numbering, so it doesn't move.)
+
 ## [0.4.0] — 2026-11-01
 
 ### Changed

@@ -423,3 +423,75 @@ water version as a prefix: an installed `1125.31.50.x` is current, not
 newer. The files are CAPTCHA-gated, so there are no `infs.json` rows for
 them.
 
+
+# Fourth round (data 2.0.x, 2026-11-01)
+
+## INF rows for silicon-vendor releases (#19): added
+
+The installer each silicon page links is now downloaded and its INFs
+extracted. The rows have `sources: ["silicon"]`, a `driver_date`,
+`first_published` = the release date, and no `artefact_ids`. Covered:
+NVIDIA, AMD (both installers, below) and Intel Arc/Iris graphics. Intel's
+Wi-Fi, Bluetooth and chipset INF installers are WiX Burn bundles that
+extract doesn't unpack yet, so those families still have only board
+vendors' INF rows.
+
+- **NVIDIA:** `nv_dispi.inf` `32.0.16.2101` (621.01, DriverVer 2026-10-19)
+  binds `DEV_2782`. A PC on 621.01 is current, not newer.
+- **AMD:** 26.10.2 is two driver branches in two installers. `…-win11-b.exe`
+  is 26.20.15.12 = `32.0.32015.12012` (`u0205499.inf`: RDNA3/4, including
+  WILLOW's 780M `DEV_15BF`). `…-win11-a.exe` is 25.10.45.20 =
+  `32.0.21045.20006` (`u0205498.inf`: RDNA2 and the Raphael iGPU
+  `DEV_164E`). So 32015.12012 does **not** cover MAHOGANY's iGPU. Its
+  newest build is `32.0.21045.20006`, and `32.0.21045.5002` is behind it.
+
+The AMD Graphics family water is still `32.0.32015.12012`, the higher
+branch, which `-a` devices can't install. For AMD graphics, compare against
+the newest `u*.inf` row binding the device, never the family water. The
+"family lists this exact build" workaround is no longer needed for NVIDIA,
+and is wrong for AMD `-a` devices.
+
+## PCI match keys on graphics cards (#18): device and maker added; model not available
+
+`boards.json` graphics cards now have `pci` (all 1,353):
+
+```json
+"pci": {"device": ["10DE:2782"], "subsys_vendor": "1462"}
+```
+
+`device` comes from the display INFs' own device names (`NVIDIA_DEV.2782 =
+"NVIDIA GeForce RTX 4070 Ti"`), so it follows NVIDIA's, AMD's and Intel's
+naming. Some chips have several IDs (RTX 4060 Ti: `2788`, `2803`, `2805`).
+Where one AMD device ID is several chips, the revision is appended:
+`1002:744C:C8` is the RX 7900 XTX, `1002:744C:CC` the XT. `subsys_vendor`
+is the card maker (ASUS `1043`, Gigabyte `1458`, MSI `1462`).
+
+`subsys` (the card model) isn't published: no source the index reads has
+it. pci.ids has no subsystem entries for `10DE:2782`. NVIDIA's INFs list
+some partner SUBSYS IDs (`2782&SUBSYS_51301462` is there) but name them
+all "RTX 4070 Ti". VBIOS downloads embed the ID, but exist for only about
+330 of 1,353 cards, and not for board 4107. Without `subsys`, a boost clock
+can't separate anything, so it isn't added either. A match is "one of the
+maker's cards with this chip" (20 for MSI RTX 4070 Ti). All of them get the
+same driver answer, which is the silicon vendor's.
+
+## Families with no HWIDs, Lenovo INFs, MediaTek year rows (#9, #17, #14): still open
+
+Not part of this round. Counts for planning:
+- **21 families** have empty `hwids`, not 16. Six are `(preinstall)`
+  variants, which pool their HWIDs with the full family by design, so 15
+  are really empty. Two of those (`USB-C Connector Manager`, `Intel WAPI`)
+  are Dell-only: Dell payloads are fetched but their installers yield no
+  INFs.
+- **HP:** the newest package per family, plus unassigned packages, is 382
+  softpaqs, 14.8 GB. URLs and sha256 are in the catalog.
+- **Lenovo:** 1,108 packages. Payload URLs are inside each package's
+  descriptor XML, which the crawler doesn't parse yet; sizes are unknown.
+
+## Also fixed
+
+AMD's own chipset version was stuck at 8.08.12.551 since late September:
+AMD renamed the installer to lower case (`amd_chipset_software_8.09.28.1124.exe`)
+and the page pattern stopped matching. The upstream row is now
+8.09.28.1124. The AMD Chipset water doesn't move: it follows board vendors'
+7.x package numbering.

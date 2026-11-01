@@ -58,8 +58,10 @@ def run(conn: sqlite3.Connection, *, log=print) -> dict:
         "SELECT board_id, vendor, vendor_product_id, name, slug, revision,"
         " chipset, socket, product_type, release_date, support_url FROM board")]
     smbios = _smbios(conn)
+    pci = _pci(conn, boards)
     for b in boards:
         b["smbios"] = smbios.get(b["board_id"])
+        b["pci"] = pci.get(b["board_id"])
 
     effective = _effective_versions(conn)
     water = _water_level(conn, families, effective)
@@ -582,6 +584,57 @@ def _smbios(conn) -> dict[int, dict[str, list[str]]]:
     return {bid: {k: sorted(v) for k, v in d.items() if v} for bid, d in out.items()}
 
 
+# PCI subsystem vendor IDs of the card makers indexed
+CARD_SUBSYS_VENDOR = {"asus": "1043", "gigabyte": "1458", "msi": "1462", "asrock": "1849"}
+# vendor words, and the memory size AMD names some chips with
+# ('RX 6750 GRE 12GB'); cards are named by chip alone ('RX 6750GRE')
+_GPU_NAME_NOISE = re.compile(r"\(r\)|\(tm\)|®|™|\b\d+\s*gb\b|"
+                             r"\b(?:nvidia|geforce|amd|radeon|intel|graphics)\b")
+_GPU_NOT_CARD = re.compile(r"laptop|mobile|max-q|\bm\b|embedded", re.I)
+_PCI_ID = re.compile(r"PCI\\VEN_([0-9A-F]{4})&DEV_([0-9A-F]{4})"
+                     r"(?:&SUBSYS_[0-9A-F]{8})?(?:&REV_([0-9A-F]{2}))?$")
+
+
+def _gpu_key(name: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", _GPU_NAME_NOISE.sub(" ", name.lower()))
+
+
+def _pci(conn, boards) -> dict[int, dict]:
+    """Graphics cards' PCI match keys (boards.json 'pci'). Cards are named by
+    chip ('RTX 4070 TI'); display INFs name each device ID ('NVIDIA GeForce
+    RTX 4070 Ti' = DEV_2782), so the chip gives the GPU's IDs:
+
+    device         'VVVV:DDDD', or 'VVVV:DDDD:RR' where one device ID is
+                   several chips told apart by revision (AMD 744C: C8 =
+                   RX 7900 XTX, CC = RX 7900 XT). AMD binds per partner
+                   SUBSYS only; the chip is the same without it.
+    subsys_vendor  the card maker's PCI subsystem vendor ID (MSI = 1462)
+
+    Card models within a maker differ only by subsystem device ID, which no
+    source the index reads publishes, so a match is "one of these cards"."""
+    named: dict[tuple, set[str]] = defaultdict(set)    # (ven, dev, rev) -> keys
+    for hwid, name in conn.execute("SELECT DISTINCT hwid, name FROM inf_device_name"):
+        if (m := _PCI_ID.match(hwid)) and not _GPU_NOT_CARD.search(name):
+            named[m.groups()].add(_gpu_key(name))
+    keys_of_dev: dict[tuple, set[str]] = defaultdict(set)
+    for (ven, dev, _rev), ks in named.items():
+        keys_of_dev[(ven, dev)] |= ks
+    by_key: dict[str, set[str]] = defaultdict(set)
+    for (ven, dev, rev), ks in named.items():
+        shared = len(keys_of_dev[(ven, dev)]) > 1
+        for k in ks:
+            by_key[k].add(f"{ven}:{dev}:{rev}" if shared and rev else f"{ven}:{dev}")
+    out = {}
+    for b in boards:
+        if b["product_type"] != "graphics-card" or not b["chipset"]:
+            continue
+        devices = by_key.get(_gpu_key(b["chipset"]))
+        if devices:
+            out[b["board_id"]] = {"device": sorted(devices),
+                                  "subsys_vendor": CARD_SUBSYS_VENDOR.get(b["vendor"])}
+    return out
+
+
 def _hwid_filename(hwid: str) -> str:
     return hwid.replace("\\", "_").replace("&", "+") + ".json"
 
@@ -702,6 +755,11 @@ def _merge_upstream_infs(conn, groups: dict) -> None:
         twin = next((g for g in siblings if g["driver_ver_normalised"] == norm), None)
         if twin:
             twin["sources"].add(r["source"])
+            # a silicon-installer row (no vendor package) dates from the
+            # earliest source that carried it
+            if not twin["artefact_ids"] and r["published"] and (
+                    not twin["first_published"] or r["published"] < twin["first_published"]):
+                twin["first_published"] = r["published"]
             continue
         g = groups.setdefault((name, ver), {
             "inf_name": name, "inf_series": _inf_series(name),
@@ -730,7 +788,13 @@ def _infs(conn) -> list[dict]:
     for r in conn.execute(
             "SELECT artefact_id, family_id, sha256, release_date FROM artefact"
             " WHERE kind = 'driver' AND sha256 IS NOT NULL"):
-        arts[r["sha256"]].append(r)
+        arts[r["sha256"]].append(dict(r, source="vendor"))
+    # silicon-vendor installers: no artefact of their own, the family by name
+    for r in conn.execute(
+            "SELECT f.family_id, p.sha256, p.published AS release_date"
+            " FROM upstream_payload p LEFT JOIN family f ON f.name = p.family"
+            " WHERE p.sha256 IS NOT NULL"):
+        arts[r["sha256"]].append(dict(r, artefact_id=None, source="silicon"))
     groups: dict[tuple, dict] = {}
     cleaned: dict[str, list[str]] = {}
     for r in conn.execute(
@@ -757,12 +821,14 @@ def _infs(conn) -> list[dict]:
             "driver_ver_normalised": list(versions.parse(r["driver_ver"]).tuple or []),
             "driver_date": r["driver_date"], "class": r["class"],
             "family_ids": set(), "artefact_ids": set(), "hwids": set(),
-            "first_published": None, "sources": {"vendor"}})
+            "first_published": None, "sources": set()})
         g["hwids"].update(cleaned[sha])
         if r["driver_date"] and (not g["driver_date"] or r["driver_date"] < g["driver_date"]):
             g["driver_date"] = r["driver_date"]
         for a in rows:
-            g["artefact_ids"].add(a["artefact_id"])
+            g["sources"].add(a["source"])
+            if a["artefact_id"] is not None:
+                g["artefact_ids"].add(a["artefact_id"])
             if a["family_id"] is not None:
                 g["family_ids"].add(a["family_id"])
             d = a["release_date"]

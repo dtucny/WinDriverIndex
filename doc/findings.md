@@ -566,3 +566,34 @@ doc/upstream-requests.md).
 - Run: crawls 16:24–17:29 (all first try), fetch 76 min (502 payloads),
   extract 3 min; 1,248 new artefacts before the ASUS BIOS re-crawl.
 
+
+## 2026-11-01 — silicon-vendor installers (fourth round of consumer feedback)
+
+- Every silicon page links its installer: NVIDIA's AjaxDriverService JSON
+  (`DownloadURL`, 1.04 GB for 621.01), AMD's CPU/GPU driver pages, Intel's
+  download pages (`downloadmirror.intel.com`). All answer ranged GETs to a
+  Chrome-impersonated client.
+- `drivers.amd.com` needs `Referer: https://www.amd.com/`; without it the
+  installer URL returns a 21 KB HTML page with a 200/206 status, not an error.
+- AMD splits each Adrenalin release into two installers, each ~1 GB:
+  `…-win11-a.exe` carries the older display branch (26.10.2: driver
+  25.10.45.20 = Driver Store 32.0.21045.20006, `u0205498.inf`, 276 AMD
+  device IDs incl. the Raphael iGPU `DEV_164E` and RX 6000 `73BF`, no
+  RDNA3/4) and `…-win11-b.exe` the current one (26.20.15.12 = 32.0.32015.12012).
+  CPU pages with an RDNA2 iGPU (7800X3D) link only `-a`; RDNA3/4 pages (RX
+  9070 XT, 7840HS) only `-b`. The release notes list both Driver Store
+  versions; `_amd_store_version` takes the max, so AMD Graphics water is the
+  `-b` branch's and is not reachable for `-a` devices.
+- AMD renamed the chipset installer from `AMD_Chipset_Software_…` to
+  `amd_chipset_software_8.09.28.1124.exe` (seen on the 2026-10-23 crawl);
+  the case-sensitive pattern found nothing and the 2026-09-29 row stood.
+- Intel Wi-Fi, Bluetooth and Chipset INF installers are WiX Burn bundles
+  (IDK `SFX.exe`): 7-Zip sees only the PE; `-t#` splits off an inner PE,
+  whose overlay holds the UX cab and an attached-container cab of
+  extensionless files (UTF-16 INFs, `.cat`, MSIs). Not unpacked yet. The
+  Intel Arc/Iris package (`gfx_win_*.exe`) opens directly.
+- pci.ids has no subsystem entries for recent cards (none under
+  `10DE:2782`); NVIDIA INFs list some board-partner SUBSYS IDs
+  (`2782&SUBSYS_51301462`) but name them all by chip. VBIOS downloads,
+  which embed the subsystem ID, exist for 152 ASUS, ~170 Gigabyte and 9 MSI
+  cards of 1,353.

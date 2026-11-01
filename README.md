@@ -47,7 +47,13 @@ file means no indexed family claims that ID.
   (`10.080.50.0407` = `10.080.0407.2026`). `infs.json` HWIDs carry no
   SUBSYS/REV qualifiers; every device also reports that shorter form.
   Rows also come from upstream sources with no vendor package (`sources`:
-  `vendor`, `wucatalog`, `amd-release-notes`). Windows Update updates
+  `vendor`, `silicon`, `wucatalog`, `amd-release-notes`). `silicon` rows are
+  INFs from the installer of the release NVIDIA, AMD or Intel lists for
+  their graphics drivers, often newer than any board vendor's package. They
+  have a `driver_date` but no `artefact_ids`. AMD ships one Adrenalin
+  release as two driver branches (in 26.10.2: 32.0.32015.x for RDNA3/4,
+  32.0.21045.x for RDNA2 and the Raphael iGPU), so for AMD graphics take the
+  newest row binding the device rather than the family water. Windows Update updates
   software components (Realtek service/HSA/APO, Nahimic, Intel DTT) on
   their own, and AMD's chipset installer can't be unpacked, so these rows
   carry versions no board vendor lists. Upstream-only rows have no
@@ -75,6 +81,14 @@ file means no indexed family claims that ID.
   `baseboard_product_contains` (MSI board code such as `MS-7D75`; a substring
   of the baseboard product — several boards can share one code). Other
   vendors' boards match by name.
+- **Match graphics cards by PCI ID**, where `boards.json` has `pci`:
+  `device` lists the GPU's `VVVV:DDDD` IDs (`10DE:2782` = RTX 4070 Ti; AMD
+  IDs that differ only by revision carry it, `1002:744C:C8` = RX 7900 XTX),
+  taken from the display INFs' device names; `subsys_vendor` is the card
+  maker's PCI subsystem vendor (`1462` = MSI). A card reports both in
+  `PCI\VEN_10DE&DEV_2782&SUBSYS_51301462`. The card model is the subsystem
+  device (`5130`), which no source the index reads publishes, so the match
+  is "one of these cards": the maker's cards with that chip.
 - **Check the BIOS by version, not date.** Windows reports the BIOS's build
   date, which precedes the vendor's publish date by weeks or months.
   `by-board` `bios.last_bios_version` is the newest stable BIOS's version

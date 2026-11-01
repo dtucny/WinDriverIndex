@@ -85,9 +85,44 @@ def run(conn: sqlite3.Connection, run_date: str, *, vendor: str | None = None,
         n_fetched += 1
         log(f"fetched {row['vendor']} {row['vendor_artefact_id']} "
             f"{size / 1e6:.1f} MB {sha[:12]}")
+    if vendor in (None, "silicon"):
+        n_fetched += _fetch_upstream(conn, client, limit, log)
     stats = {"fetched": n_fetched, "skipped": n_skipped, "mismatched": n_mismatch}
     log(f"fetch: {stats}")
     return stats
+
+
+def _fetch_upstream(conn, client, limit, log) -> int:
+    """Installers the latest silicon crawl linked (upstream_payload), for the
+    release each family lists. Nothing publishes their hashes, so a stored
+    row is simply skipped."""
+    from .vendors.silicon import DOWNLOAD_HEADERS
+    rows = conn.execute(
+        "SELECT p.family, p.version, p.url, p.sha256 FROM upstream_payload p"
+        " JOIN artefact a ON a.vendor = 'silicon' AND a.vendor_artefact_id = p.family"
+        " AND a.version_raw = p.version AND a.last_seen = p.last_seen"
+        " ORDER BY p.family").fetchall()
+    n = 0
+    for row in rows:
+        if row["sha256"] and stored_payload(row["sha256"]):
+            continue
+        if limit is not None and n >= limit:
+            break
+        host = row["url"].split("/")[2]
+        try:
+            sha, _md5, size, _path = _download(client, row["url"],
+                                               headers=DOWNLOAD_HEADERS.get(host),
+                                               reject_html=True)
+        except Exception as exc:
+            log(f"FETCH FAIL silicon {row['family']} {row['version']}: {exc}")
+            continue
+        conn.execute("UPDATE upstream_payload SET sha256 = ?, file_size = ?"
+                     " WHERE family = ? AND url = ?",
+                     (sha, size, row["family"], row["url"]))
+        n += 1
+        log(f"fetched silicon {row['family']} {row['version']} "
+            f"{size / 1e6:.1f} MB {sha[:12]}")
+    return n
 
 
 def _newest_per_family(rows) -> list:
@@ -125,10 +160,15 @@ def _already_stored(conn, row) -> bool:
     return bool(sha) and stored_payload(sha) is not None
 
 
-def _download(client: PoliteClient, url: str) -> tuple[str, str, int, Path]:
+def _download(client: PoliteClient, url: str, *,
+              headers: dict[str, str] | None = None,
+              reject_html: bool = False) -> tuple[str, str, int, Path]:
     # Payloads reach 1.3 GB (AMD graphics); the listing-tier timeout is far
     # too short for them.
-    resp = client.get(url, timeout=1800)
+    resp = client.get(url, timeout=1800, headers=headers)
+    if reject_html and "text/html" in (resp.headers.get("content-type") or ""):
+        # a download host's refusal page, not the file (AMD without Referer)
+        raise ValueError("got an HTML page instead of the file")
     body = resp.content
     sha = hashlib.sha256(body).hexdigest()
     md5 = hashlib.md5(body).hexdigest()

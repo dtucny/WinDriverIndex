@@ -96,3 +96,30 @@ def test_changes_name_the_silicon_vendor(tmp_path):
     (move,) = ch["water"]
     assert move["published_by"] == ["silicon"] and move["silicon_vendor"] == "amd"
     assert move["dir"] == "up"
+
+
+def test_graphics_card_pci_keys(tmp_path):
+    from winidx import db, publish
+    conn = db.connect(tmp_path / "t.sqlite")
+    conn.executemany("INSERT INTO inf_device_name VALUES ('i', ?, ?)", [
+        ("PCI\\VEN_10DE&DEV_2782", "NVIDIA GeForce RTX 4070 Ti"),
+        ("PCI\\VEN_10DE&DEV_2705", "NVIDIA GeForce RTX 4070 Ti SUPER"),
+        ("PCI\\VEN_10DE&DEV_2820", "NVIDIA GeForce RTX 4070 Laptop GPU"),
+        ("PCI\\VEN_1002&DEV_744C&REV_C8", "AMD Radeon RX 7900 XTX"),
+        ("PCI\\VEN_1002&DEV_744C&SUBSYS_05ED1043&REV_CC", "AMD Radeon RX 7900 XT"),
+        ("PCI\\VEN_1002&DEV_73FF&SUBSYS_E4521DA2&REV_C3", "AMD Radeon RX 6750 GRE 12GB")])
+    boards = [
+        {"board_id": 1, "vendor": "msi", "product_type": "graphics-card",
+         "chipset": "RTX 4070 TI"},
+        {"board_id": 2, "vendor": "asus", "product_type": "graphics-card",
+         "chipset": "RX 7900XT"},
+        {"board_id": 3, "vendor": "msi", "product_type": "graphics-card",
+         "chipset": "RTX 4070"},
+        {"board_id": 4, "vendor": "msi", "product_type": "motherboard",
+         "chipset": "B650"},
+        {"board_id": 5, "vendor": "gigabyte", "product_type": "graphics-card",
+         "chipset": "RX 6750GRE"}]
+    assert publish._pci(conn, boards) == {
+        1: {"device": ["10DE:2782"], "subsys_vendor": "1462"},
+        2: {"device": ["1002:744C:CC"], "subsys_vendor": "1043"},
+        5: {"device": ["1002:73FF"], "subsys_vendor": "1458"}}
