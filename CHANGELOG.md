@@ -10,6 +10,15 @@ published data schema is versioned separately (see `schema_version` in every
 
 ### Fixed
 
+- Self-extracting zips (Dell's `.EXE` packages) are unpacked: 7-Zip opens
+  them only as a PE, Python's `zipfile` reads the archive. 120 more
+  payloads give INFs (35 new `infs.json` rows), and the Dell-only families
+  `USB-C Connector Manager` and `Intel WAPI` get HWIDs (#9); Intel LAN
+  gains 290 SUBSYS IDs from Dell's `e1d.inf`.
+- A family owning a HWID only through Extension INFs no longer takes it
+  off the family whose own driver binds the device: Intel WAPI's extension
+  binds every Intel Wi-Fi card, and had taken the 7265's IDs off Intel
+  Wi-Fi.
 - Silicon artefacts link a page for people (#16): NVIDIA Graphics links
   the release's page (the lookup response's `DetailsURL`), not the JSON
   driver-lookup API it is crawled from, and AMD Graphics links AMD's

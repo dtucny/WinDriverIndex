@@ -647,3 +647,23 @@ doc/upstream-requests.md).
   so a device on one reports a different INF name.
 - USB Ethernet (cate_id 585): Win11 `rtu5Ncx22x64sta.inf` 115N.23.20.0605
   (8152/8153/8155/8156…), Win10 `rtump64x64sta.inf` 10.68.20.0605.
+
+## 2026-11-01 — Dell self-extracting zips; Extension INFs and HWID ownership
+
+- 218 stored payloads (mostly Dell) are zips behind a PE stub: Dell's
+  `…_WIN64_….EXE` for Cypress USB-C (`CyUcmClient.inf`), Intel WAPI, Intel
+  LAN (`e1d.inf`), Killer, panel drivers. `7zz` opens them only as PE (the
+  stub's sections) and refuses `-tzip`; `-t#` reports one "zip" spanning the
+  whole file. Python's `zipfile` reads them from the central directory at
+  the end. 120 of them carry INFs; the rest are firmware and applications.
+- `USB-C Connector Manager` and `Intel WAPI` (Dell-only, issue #9) get
+  HWIDs from them: `ACPI\CYP0002`–`CYP0006` (were mis-owned by Intel Serial
+  I/O) and WAPI's `SWC\VID_8086&WAPI&SID_0010`.
+- Intel's `WapiExtension.inf` is an **Extension** INF binding every Intel
+  Wi-Fi card bare (`PCI\VEN_8086&DEV_095A`) — and one ME device. It is in
+  every WAPI package, so ownership by coverage gave WAPI the 7265 IDs and
+  took them off Intel Wi-Fi, whose own INFs bind them only with SUBSYS.
+  Extension-only ownership now no longer excludes families binding the
+  device (by base ID) in a base INF. A global "extensions never claim a
+  base INF's HWIDs" rule is wrong: DTS and OEM audio families are mostly
+  Extension INFs and lost most of their HWIDs under it.

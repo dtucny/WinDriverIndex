@@ -97,3 +97,26 @@ def test_hp_and_dell_titles_reach_their_families():
     assert family("intel xmm 7560r+ lte-a pro drivers — hp") == "Intel WWAN"
     assert family("intel be2xx/ax4xx/ax2xx/9xxx wi-fi driver") == "Intel Wi-Fi"
     assert family("intel be2xx/ax4xx/ax2xx/9xxx bluetooth driver") != "Intel Wi-Fi"
+
+
+def test_extension_inf_does_not_take_a_device_off_its_driver(tmp_path, monkeypatch):
+    from winidx.families import hwid_support
+    conn = _db(tmp_path, monkeypatch)
+    wifi = _family(conn, "Intel Wi-Fi", "wlan")
+    wapi = _family(conn, "Intel WAPI", "wlan")
+    card, swc = r"PCI\VEN_8086&DEV_095A", r"SWC\VID_8086&WAPI&SID_0010"
+    # Wi-Fi's own INF binds the card with SUBSYS, and the WAPI extension
+    # (binding it bare) rides along in 1 of 4 Wi-Fi packages; it is in
+    # every WAPI package
+    for i in range(4):
+        infs = {"netwtw08.inf": [r"PCI\VEN_8086&DEV_2723"]
+                + ([card + "&SUBSYS_50108086"] if i == 0 else [])}
+        if i == 0:
+            infs["wapiextension.inf"] = [card, swc]
+        _payload(conn, wifi, f"w{i}", infs)
+        _payload(conn, wapi, f"p{i}", {"wapiextension.inf": [card, swc],
+                                       "wapiswcomponent.inf": [swc]})
+    conn.execute("UPDATE inf SET class = 'Extension' WHERE path LIKE '%wapiextension%'")
+    sup = hwid_support(conn)
+    assert card in sup[wifi] and card in sup[wapi] and swc in sup[wapi]
+    assert swc not in sup[wifi]

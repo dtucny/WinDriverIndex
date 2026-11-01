@@ -19,6 +19,7 @@ import shutil
 import sqlite3
 import subprocess
 import tempfile
+import zipfile
 from pathlib import Path
 
 from . import config
@@ -124,6 +125,17 @@ def _extract_and_index(sha: str, archive: Path) -> list[dict]:
                     out = root / dst / inner.relative_to(root / src)
                     _7z(inner, out, ignore_errors=True)   # many .exe aren't archives
         records = _index_layers(root, (("0", 0), ("1", 1), ("2", 2)))
+        if not any("meta" in r for r in records) and zipfile.is_zipfile(archive):
+            # a zip behind a PE stub (Dell's Cypress/Intel self-extractors):
+            # 7-Zip shows only the stub's sections, Python's zipfile reads
+            # the archive from its end
+            with zipfile.ZipFile(archive) as z:
+                z.extractall(root / "z")   # drops '..' and absolute names
+            for inner in sorted((root / "z").rglob("*")):
+                if inner.is_file() and inner.suffix.lower() in NESTED_EXTS:
+                    _7z(inner, root / "z1" / inner.relative_to(root / "z"),
+                        ignore_errors=True)
+            records += _index_layers(root, (("z", 0), ("z1", 1)))
         if not any("meta" in r for r in records) and _magic(archive) == "pe":
             # installers whose drivers 7-Zip's PE view can't see (Intel's
             # WiX Burn bundles): carve them apart by signature instead

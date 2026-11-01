@@ -116,3 +116,20 @@ def test_burn_container_files_get_manifest_names(tmp_path):
     _burn_names(tmp_path)
     assert (split / "4.cab.x" / "WiFiDriver" / "Netwtw08.INF").read_bytes() == b"inf"
     assert not (split / "4.cab.x" / "a20").exists()
+
+
+def test_zip_behind_a_pe_stub(tmp_path, monkeypatch):
+    import io
+    import zipfile
+    from winidx import config
+    from winidx.extract import _extract_and_index
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path)
+    (tmp_path / "tmp").mkdir()
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        z.writestr("drivers/production/Windows10-x64/CyUcmClient.inf", SAMPLE)
+    exe = tmp_path / "dell.exe"
+    exe.write_bytes(b"MZ" + b"\0" * 4094 + buf.getvalue())   # Dell's self-extractor
+    recs = _extract_and_index("ab" * 32, exe)
+    assert [r["path"] for r in recs if "meta" in r] == [
+        "drivers/production/Windows10-x64/CyUcmClient.inf"]

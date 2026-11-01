@@ -661,9 +661,12 @@ def hwid_support(conn) -> dict[int, dict[str, float]]:
     carriers: dict[str, dict[int, set]] = defaultdict(lambda: defaultdict(set))
     fam_payloads: dict[int, set] = defaultdict(set)
     key_hwids: dict[tuple[int, str], set[str]] = defaultdict(set)
+    # base HWID -> families binding it in a base INF (Intel's Wi-Fi INFs
+    # bind cards with SUBSYS; the extensions riding along bind them bare)
+    base_of: dict[str, set[int]] = defaultdict(set)
     cleaned: dict[str, list[str]] = {}
-    for payload, path, inf_sha, blob in conn.execute(
-            "SELECT payload_sha256, path, inf_sha256, hwids FROM inf"
+    for payload, path, inf_sha, blob, cls in conn.execute(
+            "SELECT payload_sha256, path, inf_sha256, hwids, class FROM inf"
             " WHERE hwids != '[]'"):
         fids = fams_of.get(payload)
         if not fids:
@@ -677,6 +680,9 @@ def hwid_support(conn) -> dict[int, dict[str, float]]:
             carriers[key][fid].add(payload)
             fam_payloads[fid].add(payload)
             key_hwids[(fid, key)].update(cleaned[inf_sha])
+            if (cls or "").lower() != "extension":
+                for h in cleaned[inf_sha]:
+                    base_of[hwid_base(h)].add(fid)
 
     cand: dict[str, dict[int, tuple[float, bool]]] = defaultdict(dict)
     for (fid, key), hs in key_hwids.items():
@@ -690,7 +696,14 @@ def hwid_support(conn) -> dict[int, dict[str, float]]:
     for h, fams in cand.items():
         owner = _anchor_owner(h)
         keep = [f for f in fams if names[f] == owner] if owner else []
-        keep = keep or [f for f, (_c, o) in fams.items() if o] or list(fams)
+        owned = [f for f, (_c, o) in fams.items() if o]
+        based = base_of.get(hwid_base(h), set())
+        if owned and not based & set(owned):
+            # owned only through Extension INFs, which add to a device's
+            # own driver: Intel's WAPI extension in every WAPI package binds
+            # Intel Wi-Fi cards, and must not take them off Intel Wi-Fi
+            owned += [f for f in fams if f in based and f not in owned]
+        keep = keep or owned or list(fams)
         for f in keep:
             support[f][h] = round(fams[f][0], 3)
     return support
