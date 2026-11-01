@@ -678,10 +678,10 @@ audio, MediaTek)? Same pairings as vendor-lag, split by family.silicon_vendor:
   MediaTek the most current at 103. OEM parts (camera, fingerprint, card
   reader: laptop-only families) are the worst rows (median 985), and
   Qualcomm (1231).
-- HP is slow on every silicon row: Intel 597, AMD 415, Realtek 403 (the
-  next-worst vendor per row is Lenovo, at 414 / 172 / 464). On Realtek Audio
-  specifically HP sits at the common 168 days; Dell (587) and Lenovo (446)
-  are the slow ones there.
+- HP is slow on every silicon row, though not always the slowest: Intel
+  597 (worst; Lenovo next at 414), AMD 415 (Gigabyte worse, 629), Realtek
+  403 (Lenovo worse, 464). On Realtek Audio specifically HP sits at the
+  common 168 days; Dell (587) and Lenovo (446) are the slow ones there.
 - Mix-adjusted (each pairing minus its family's all-vendor median): HP is
   the only vendor whose median pairing is behind its peers, +56 days, with
   57% of its pairings behind the family median (Gigabyte and Lenovo 45%,
