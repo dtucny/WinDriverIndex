@@ -123,3 +123,26 @@ def test_graphics_card_pci_keys(tmp_path):
         1: {"device": ["10DE:2782"], "subsys_vendor": "1462"},
         2: {"device": ["1002:744C:CC"], "subsys_vendor": "1043"},
         5: {"device": ["1002:73FF"], "subsys_vendor": "1458"}}
+
+
+def test_water_retries_past_a_stale_line_to_a_newer_corroborated_one(tmp_path):
+    # AMD Chipset 2026-11: dominant 7.x, a stale high 20.x (Dell 2020-22), a
+    # single-vendor fringe 10.x, and the 8.x line that replaced 7.x
+    from winidx import db, publish, versions
+    conn = db.connect(tmp_path / "t.sqlite")
+    fid = conn.execute("INSERT INTO family (name, silicon_vendor, component)"
+                       " VALUES ('AMD Chipset', 'amd', 'chipset')").lastrowid
+    rows = [("dell", "20.100.0", "2020-07-01"), ("dell", "20.100.0", "2022-01-25"),
+            ("hp", "10.190514", "2019-06-19"), ("hp", "10.190514", "2026-01-01")]
+    rows += [(v, f"7.12.30.{i}", f"2026-02-0{i}") for i, v in
+             enumerate(["dell", "asus", "msi", "hp", "lenovo", "dell", "asus", "msi"], 1)]
+    rows += [(v, f"8.3.25.{i}", f"2026-0{i}-15") for i, v in
+             enumerate(["asus", "msi", "lenovo", "hp", "dell"], 4)]
+    for i, (vendor, ver, date) in enumerate(rows):
+        db.upsert_artefact(conn, "2026-11-01", vendor=vendor, vendor_artefact_id=str(i),
+                           kind="driver", family_id=fid, version_raw=ver,
+                           version_normalised=versions.parse(ver).normalised_json,
+                           release_date=date)
+    families = {fid: {"name": "AMD Chipset"}}
+    (w,) = publish._water_level(conn, families, publish._effective_versions(conn))
+    assert w["version"] == "8.3.25.8" and w["best_vendor_version"] == "8.3.25.8"

@@ -8,6 +8,37 @@ published data schema is versioned separately (see `schema_version` in every
 
 ## [Unreleased]
 
+### Added
+
+- Landing page and README list [WdiCheck](https://github.com/dtucny/wdi-check),
+  the Windows client, with a link to its (not yet code-signed) builds.
+- HP payloads are fetched and extracted like other vendors' (#9): the
+  softpaq URLs are the packages, verified against the catalog's sha256
+  (381 softpaqs, 14.8 GB for the newest per family). 617 more `infs.json`
+  rows; Card Reader, Intel ISH, Intel WWAN and WWAN (module vendors) now
+  have HWIDs (empty families 21 → 17, 7 of them preinstall variants).
+
+### Fixed
+
+- Family water skipped newer version lines hidden behind a stale one
+  (#13): the majority-line guard sent the water to the dominant line's top
+  whenever it rejected an outlier. It now retries among the dominant line
+  and corroborated lines (two board vendors, a quarter of the dominant
+  line's listings). AMD Chipset water is 8.09.28.1124 (was 7.12.30.211
+  behind Dell's 2020-22 20.100.0); Intel LAN moves to Intel's 20.0.3.x line
+  (was 12.19.2.68); Fingerprint Reader and Realtek LAN leave 2021 Dell rows.
+  `best_vendor_version` no longer comes from a rejected line (it was
+  20.100.0 for AMD Chipset, `9360.1_WHQL_RTK` for Realtek Audio).
+- Family rules the HP payloads exposed: "AMD Neural Processing Unit" and
+  "AMD Image Processing Unit (IPU)" packages were Intel NPU (Intel NPU
+  water was AMD's 32.0.20102.3930; now 32.0.100.5540); Intel's "Movidius
+  Vision Processing Unit (VPU)" is Intel NPU; HP's "XMM 7560R+" is Intel
+  WWAN; Dell's "Intel BE2xx/AX4xx/AX2xx/9xxx Wi-Fi Driver" is Intel Wi-Fi
+  (was Killer Suite). Bundle pairs for Dell's Intel Software Integrated
+  Package (DTT with Serial IO and PMT) and Radeon packages (AMD NPU).
+- AMD's chipset release has a date: the release notes' publish date when
+  their title names the listed version (2026-10-21 for 8.09.28.1124).
+
 ## [0.5.0] — 2026-11-01
 
 ### Added

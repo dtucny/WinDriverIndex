@@ -38,7 +38,11 @@ RULES: list[tuple[str, str, str, list[str]]] = [
      # zips are keyed by their URL path (amd/sata vs intel/sata).
      [r"amd raid", r"am[45] raid", r"raidxpert", r"\bmd raid",
       r"amd/sata/"]),
-    ("AMD NPU", "amd", "npu", [r"amd npu", r"npu amd"]),
+    # HP titles it 'AMD Neural Processing Unit (NPU)', and the first Ryzen AI
+    # builds 'AMD Image Processing Unit (IPU)' (kipudrv.inf); Intel NPU's
+    # 'neural processing' would claim both
+    ("AMD NPU", "amd", "npu", [r"amd npu", r"npu amd", r"amd neural processing",
+                               r"amd image processing unit"]),
     ("AMD Bluetooth", "amd", "bluetooth", [r"amd blue", r"amd bt\b"]),
     ("AMD Wi-Fi", "amd", "wlan", [r"amd wi-?fi"]),
     ("AMD Chipset", "amd", "chipset", [r"amd chipset", r"chipset amd"]),
@@ -128,7 +132,9 @@ RULES: list[tuple[str, str, str, list[str]]] = [
     ("Intel Wi-Fi", "intel", "wlan",
      # bare 'Wi-Fi Driver V22.x' on ASUS Intel boards is Intel's 22.x line
      [r"intel.{0,4}wi-?fi", r"ax2\d\d.*wi-?fi", r"wifi intel", r"\b630\b",
-      r"wi-fi driver v22\.", r"intel wireless", r"intel wlan"]),
+      r"wi-fi driver v22\.", r"intel wireless", r"intel wlan",
+      # Dell: 'Intel BE2xx/AX4xx/AX2xx/9xxx Wi-Fi Driver'
+      r"intel (?:be|ax)\dxx/[\w/]+ wi-?fi driver"]),
 
     ("Intel Chipset INF", "intel", "chipset",
      [r"intel inf", r"infupdate", r"intel chipset", r"intel/inf/"]),
@@ -139,7 +145,9 @@ RULES: list[tuple[str, str, str, list[str]]] = [
     # is a graphics-scheme version (see Intel VGA note below)
     ("Intel VGA", "intel", "graphics", [r"gna driver v3\d\.0\.101"]),
     ("Intel GNA", "intel", "npu", [r"gna"]),
-    ("Intel NPU", "intel", "npu", [r"intel npu", r"neural processing"]),
+    # Meteor Lake's NPU was the 'Movidius Vision Processing Unit (VPU)'
+    ("Intel NPU", "intel", "npu", [r"intel npu", r"neural processing",
+                                   r"vision processing unit", r"movidius"]),
     ("Intel DTT", "intel", "chipset", [r"dynamic tuning", r"\bdtt\b", r"\bdptf\b",
      r"thermal framework"]),
     ("Intel Serial I/O", "intel", "chipset", [r"serial i/?o", r"serialio"]),
@@ -167,7 +175,7 @@ RULES: list[tuple[str, str, str, list[str]]] = [
      [r"n?vidia", r"n?vdia", r"geforce", r"game ready", r"\bquadro\b"]),
     ("Intel ISH", "intel", "chipset", [r"sensor hub", r"\bish\b",
      r"integrated sensor"]),
-    ("Intel WWAN", "intel", "wwan", [r"intel.*wwan", r"xmm7\d+"]),
+    ("Intel WWAN", "intel", "wwan", [r"intel.*wwan", r"xmm ?7\d+"]),   # HP: 'XMM 7560R+'
     ("WWAN (module vendors)", "oem", "wwan",
      [r"wwan", r"quectel", r"fibocom", r"\bwan driver\b"]),
     ("Camera", "oem", "camera", [r"camera"]),
@@ -322,6 +330,12 @@ BUNDLE_OK: set[frozenset] = {
         # Dell's "Intel Software Integrated Package" builds that INF evidence
         # files under DTT (GWCH8 26.28.7.1) carry HidEventFilter.inf too
         ("Intel DTT", "Intel HID Event Filter"),
+        # ...and the Serial IO and PMT INFs HP ships as their own softpaqs
+        ("Intel DTT", "Intel Serial I/O"),
+        ("Intel DTT", "Intel PMT"),
+        # Radeon packages (Dell's, and AMD's own Adrenalin) carry the NPU's
+        # kipudrv.inf
+        ("AMD Graphics", "AMD NPU"),
         ("Killer LAN", "Intel Wi-Fi"),
         ("Killer LAN", "Intel I225/I226 LAN"),
         ("Killer Suite", "Intel Wi-Fi"),

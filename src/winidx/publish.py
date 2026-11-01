@@ -292,75 +292,98 @@ def _water_level(conn, families, effective) -> list[dict]:
                       if not 20 <= effective[r["artefact_id"]].tuple[0] <= 29]
             if native:
                 rows = native
-        top = max(rows, key=lambda r: versions.compare_key(effective[r["artefact_id"]]))
-        # Best version any *board vendor* lists, for the upstream-gap metric.
-        vend_rows = [r for r in rows if r["source_type"] == "vendor"]
-        vend_top = (max(vend_rows, key=lambda r: versions.compare_key(
-            effective[r["artefact_id"]])) if vend_rows else None)
-        # Cross-source scheme guard: sources renumber independently (MediaTek
-        # is 1.x/3.x/5.x on board-vendor sites but year-based 26.x on WU), so
-        # when an upstream top's MAJOR differs from the vendor top's, numeric
-        # comparison is meaningless — the release date arbitrates, and the
-        # vendor row wins ties or missing dates.
-        if (top["source_type"] == "upstream" and vend_top is not None
-                and effective[top["artefact_id"]].tuple[0]
-                != effective[vend_top["artefact_id"]].tuple[0]):
-            td, vd = top["release_date"], vend_top["release_date"]
-            if not td or (vd and vd >= td):
-                top = vend_top
-        # Upstream-vs-upstream scheme arbitration: WU lists internal WDDM
-        # versions (32.x) while AMD's own page lists marketing versions
-        # (26.x) — when two upstream rows top different majors, the
-        # date-newer one is the truer water.
-        if top["source_type"] == "upstream":
-            others = [r for r in rows if r["source_type"] == "upstream"
-                      and effective[r["artefact_id"]].tuple[0]
-                      != effective[top["artefact_id"]].tuple[0]]
-            if others:
-                alt = max(others, key=lambda r: versions.compare_key(
-                    effective[r["artefact_id"]]))
-                td, ad = top["release_date"], alt["release_date"]
-                if ad and (not td or ad > td):
-                    top = alt
-        # Majority-line guard: occasional vendor mislabels put a foreign
-        # version scheme atop a family (ASUS lists graphics 31.0.101.x and
-        # chipset 10.1.x packages titled 'Intel GNA Driver'). When the top's
-        # MAJOR isn't the family's dominant line (and the family has real
-        # mass), the dominant line's top wins unless the outlier is
-        # date-newer — genuine scheme migrations carry the newest dates,
-        # stale one-off mislabels don't.
         from collections import Counter as _Counter
         majors = _Counter(effective[r["artefact_id"]].tuple[0] for r in rows)
         dom = majors.most_common(1)[0][0]
-        if (top["source_type"] == "vendor"
-                and effective[top["artefact_id"]].tuple[0] != dom
-                and majors[dom] >= 3):
-            tmaj = effective[top["artefact_id"]].tuple[0]
+        rejected: set[int] = set()   # outlier lines the majority guard set aside
+        line_vendors_of: dict[int, set] = defaultdict(set)
+        for r in rows:
+            if r["source_type"] == "vendor":
+                line_vendors_of[effective[r["artefact_id"]].tuple[0]].add(r["vendor"])
 
-            def _span(m):
-                ds = [r["release_date"] for r in rows if r["release_date"]
-                      and effective[r["artefact_id"]].tuple[0] == m]
-                return (min(ds), max(ds)) if ds else None
-            st, sd = _span(tmaj), _span(dom)
-            cand = max((r for r in rows
-                        if effective[r["artefact_id"]].tuple[0] == dom),
-                       key=lambda r: versions.compare_key(effective[r["artefact_id"]]))
-            td, cd = top["release_date"], cand["release_date"]
-            if st and sd and st[1] < sd[0]:
-                top = cand   # the outlier's whole line predates the dominant one
-            elif st and sd and st[0] > sd[1]:
-                pass         # sequential scheme marching on (Intel ME's
-                             # year-week majors: 2512 ended before 2620 began)
-            else:
-                # parallel lines: a single vendor's fringe line never outranks
-                # the dominant one — Dell restamps handed date-newer wins to
-                # Camera 81.x, Fingerprint 40.x, Thunderbolt 61.3, WWAN
-                # 18300.x. Corroborated lines (Intel RST 21 by Dell+Lenovo)
-                # keep the original date arbitration.
-                line_vendors = {r["vendor"] for r in rows
-                                if effective[r["artefact_id"]].tuple[0] == tmaj}
-                if len(line_vendors) < 2 or (cd and (not td or cd > td)):
-                    top = cand
+        def _contender(m):
+            # after a rejection only the dominant line and corroborated lines
+            # (two board vendors, a quarter of the dominant line's listings)
+            # may set the water: in catch-all families (Camera, Fingerprint)
+            # every fringe scheme would otherwise get its turn
+            return m == dom or (len(line_vendors_of[m]) >= 2
+                                and 4 * majors[m] >= majors[dom])
+        while True:
+            pool = [r for r in rows if effective[r["artefact_id"]].tuple[0] not in rejected
+                    and (not rejected or _contender(effective[r["artefact_id"]].tuple[0]))]
+            top = max(pool, key=lambda r: versions.compare_key(effective[r["artefact_id"]]))
+            # Best version any *board vendor* lists, for the upstream-gap metric.
+            vend_rows = [r for r in pool if r["source_type"] == "vendor"]
+            vend_top = (max(vend_rows, key=lambda r: versions.compare_key(
+                effective[r["artefact_id"]])) if vend_rows else None)
+            # Cross-source scheme guard: sources renumber independently (MediaTek
+            # is 1.x/3.x/5.x on board-vendor sites but year-based 26.x on WU), so
+            # when an upstream top's MAJOR differs from the vendor top's, numeric
+            # comparison is meaningless — the release date arbitrates, and the
+            # vendor row wins ties or missing dates.
+            if (top["source_type"] == "upstream" and vend_top is not None
+                    and effective[top["artefact_id"]].tuple[0]
+                    != effective[vend_top["artefact_id"]].tuple[0]):
+                td, vd = top["release_date"], vend_top["release_date"]
+                if not td or (vd and vd >= td):
+                    top = vend_top
+            # Upstream-vs-upstream scheme arbitration: WU lists internal WDDM
+            # versions (32.x) while AMD's own page lists marketing versions
+            # (26.x) — when two upstream rows top different majors, the
+            # date-newer one is the truer water.
+            if top["source_type"] == "upstream":
+                others = [r for r in pool if r["source_type"] == "upstream"
+                          and effective[r["artefact_id"]].tuple[0]
+                          != effective[top["artefact_id"]].tuple[0]]
+                if others:
+                    alt = max(others, key=lambda r: versions.compare_key(
+                        effective[r["artefact_id"]]))
+                    td, ad = top["release_date"], alt["release_date"]
+                    if ad and (not td or ad > td):
+                        top = alt
+            # Majority-line guard: occasional vendor mislabels put a foreign
+            # version scheme atop a family (ASUS lists graphics 31.0.101.x and
+            # chipset 10.1.x packages titled 'Intel GNA Driver'). When the top's
+            # MAJOR isn't the family's dominant line (and the family has real
+            # mass), the outlier's line is set aside unless it is date-newer —
+            # genuine scheme migrations carry the newest dates, stale one-off
+            # mislabels don't — and the pick starts again without it, among
+            # the dominant and corroborated lines. Retrying (not jumping to the
+            # dominant line) lets a newer line in between win: AMD Chipset's
+            # dominant 7.x hid the 8.x packages behind Dell's 2020-22 20.100.0
+            # and HP's '19.10.RC10' (parsed as 10.x).
+            if (top["source_type"] == "vendor"
+                    and effective[top["artefact_id"]].tuple[0] != dom
+                    and majors[dom] >= 3):
+                tmaj = effective[top["artefact_id"]].tuple[0]
+
+                def _span(m):
+                    ds = [r["release_date"] for r in rows if r["release_date"]
+                          and effective[r["artefact_id"]].tuple[0] == m]
+                    return (min(ds), max(ds)) if ds else None
+                st, sd = _span(tmaj), _span(dom)
+                cand = max((r for r in rows
+                            if effective[r["artefact_id"]].tuple[0] == dom),
+                           key=lambda r: versions.compare_key(effective[r["artefact_id"]]))
+                td, cd = top["release_date"], cand["release_date"]
+                if st and sd and st[1] < sd[0]:
+                    rejected.add(tmaj)   # the outlier's whole line predates the dominant one
+                    continue
+                elif st and sd and st[0] > sd[1]:
+                    pass         # sequential scheme marching on (Intel ME's
+                                 # year-week majors: 2512 ended before 2620 began)
+                else:
+                    # parallel lines: a single vendor's fringe line never outranks
+                    # the dominant one — Dell restamps handed date-newer wins to
+                    # Camera 81.x, Fingerprint 40.x, Thunderbolt 61.3, WWAN
+                    # 18300.x. Corroborated lines (Intel RST 21 by Dell+Lenovo)
+                    # keep the original date arbitration.
+                    line_vendors = {r["vendor"] for r in rows
+                                    if effective[r["artefact_id"]].tuple[0] == tmaj}
+                    if len(line_vendors) < 2 or (cd and (not td or cd > td)):
+                        rejected.add(tmaj)
+                        continue
+            break
         top_tuple = effective[top["artefact_id"]].tuple
         at_top = [r for r in rows if effective[r["artefact_id"]].tuple == top_tuple]
         dates = [r["release_date"] for r in at_top if r["release_date"]]

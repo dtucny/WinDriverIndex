@@ -597,3 +597,26 @@ doc/upstream-requests.md).
   (`2782&SUBSYS_51301462`) but name them all by chip. VBIOS downloads,
   which embed the subsystem ID, exist for 152 ASUS, ~170 Gigabyte and 9 MSI
   cards of 1,353.
+
+## 2026-11-01 — HP payloads (issue #9) and the AMD Chipset water (issue #13)
+
+- HP softpaq URLs (`ftp.hp.com/pub/softpaq/spNNNNNN-NNNNNN/spNNNNNN.exe`)
+  are the payloads, and 7-Zip opens them directly. Newest per family plus
+  unassigned: 382 softpaqs, 14.8 GB; 381 fetched in ~2 h, every sha256
+  matching the catalog; `sp170138` is a 404.
+- The INFs exposed rule misses that text alone had hidden: HP and Lenovo
+  title AMD's NPU "AMD Neural Processing Unit (NPU)" or (first Ryzen AI
+  builds) "AMD Image Processing Unit (IPU)", which Intel NPU's `neural
+  processing` claimed; Intel's Meteor Lake NPU is the "Movidius Vision
+  Processing Unit (VPU)"; HP writes "XMM 7560R+" with a space. Dell's
+  "Intel Software Integrated Package" carries the Serial IO and PMT INFs HP
+  ships separately, and Dell's Radeon packages carry `kipudrv.inf`.
+- Intel WWAN (XMM 7360/7560, every line ends 2024) has a Dell 6.x line,
+  an HP 2.x line and HP 0.5.x; INF evidence now puts 12 Dell rows in the
+  family, so the water is Dell's 6.19041.03006.1. Neither answer means much
+  for a discontinued modem.
+- AMD Chipset water was 7.12.30.211 although board vendors had listed 8.x
+  since March: the highest raw version was Dell's 20.100.0 (2020-22), the
+  majority guard rejected it and jumped to the dominant 7.x line, so 8.x was
+  never a candidate. HP's `19.10.RC10.190514a` parses as 10.190514 and a
+  Windows Update 10.0.1.42 row keeps that line from looking stale.

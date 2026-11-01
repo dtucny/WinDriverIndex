@@ -23,8 +23,9 @@ FETCH_KINDS = ("driver",)   # BIOS/utility payloads add ~tens of GB and no famil
 
 # Vendors whose artefact URLs are NOT payloads (Lenovo's point at package
 # descriptor XMLs; real payload URLs live inside the descriptor — Tier-2 for
-# Lenovo means parsing those out first, a roadmap follow-up).
-METADATA_ONLY_VENDORS = ("lenovo", "hp")   # hp: catalog publishes sha256
+# Lenovo means parsing those out first, a roadmap follow-up). HP softpaq URLs
+# are the payloads, with the catalog's sha256 to verify against.
+METADATA_ONLY_VENDORS = ("lenovo",)
 
 
 def payload_path(sha256: str, ext: str = ".zip") -> Path:

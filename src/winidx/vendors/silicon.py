@@ -265,6 +265,13 @@ def _amd_chipset_components(conn, client, run_date, log) -> int:
     # the article's JSON-LD carries its publish date
     m = re.search(r'"datePublished"\s*:\s*"(\d{4}-\d{2}-\d{2})', body)
     date = m.group(1) if m else None
+    # the drivers page carries no date; the notes for the same version do
+    # (and a date kept from an earlier version would be wrong)
+    title = re.search(r"<title>[^<]*?(\d+(?:\.\d+){3})", body)
+    conn.execute("UPDATE artefact SET release_date ="
+                 " CASE WHEN version_raw = ? THEN ? END"
+                 " WHERE vendor = ? AND vendor_artefact_id = 'AMD Chipset'",
+                 (title.group(1) if title else None, date, VENDOR))
     n = 0
     known = inf_hwids_by_name(conn)
     for title, ver, inf, extra in parse_chipset_rn(body):

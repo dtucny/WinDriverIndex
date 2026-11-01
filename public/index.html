@@ -204,6 +204,12 @@ from a machine abandoned across the board.</p>
 <p class="note">Everything here is static JSON, CORS-enabled, versioned, and free
 to mirror. Point a driver-checker at <code>by-hwid</code> and report anything
 below the water line.</p>
+<p class="note">On Windows, <a href="https://github.com/dtucny/wdi-check">WdiCheck</a>
+does this for you: it reads the drivers installed on the PC and compares each with
+the newest release in the index, including BIOS. It only reads and never installs
+anything. <a href="https://github.com/dtucny/wdi-check/releases/latest">Builds</a>
+(zip or MSIX, x64 and ARM64) are not code-signed yet: Windows warns before
+running them, and the MSIX needs extra steps to install.</p>
 <div class="card scroll">
 <table class="endpoints">
   <tbody>
@@ -225,6 +231,7 @@ below the water line.</p>
 </div>
 <div class="links">
   <a class="btn" href="/board.html">🔎 Check your device</a>
+  <a class="btn" href="https://github.com/dtucny/wdi-check/releases/latest">💻 WdiCheck for Windows</a>
   <a class="btn" href="https://github.com/dtucny/WinDriverIndex">⟠ GitHub repository</a>
   <a class="btn" href="https://github.com/dtucny/WinDriverIndex/blob/main/doc/spec.md">📄 Design spec</a>
   <a class="btn" href="https://github.com/dtucny/WinDriverIndex/blob/main/doc/findings.md">🔎 Findings</a>

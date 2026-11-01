@@ -82,3 +82,18 @@ def test_hwid_support_ownership(tmp_path, monkeypatch):
     assert set(sup[lan25]) == {r"PCI\VEN_10EC&DEV_8125", r"PCI\VEN_10EC&DEV_8136"}
     assert set(sup[lan68]) == {r"PCI\VEN_10EC&DEV_8168", r"PCI\VEN_10EC&DEV_8136"}
     assert set(sup[wifi]) == {r"PCI\VEN_10EC&DEV_C852"}   # no ride-along, no CC_
+
+
+def test_hp_and_dell_titles_reach_their_families():
+    import re
+    from winidx.families import RULES
+
+    def family(text):
+        return next((n for n, _sv, _c, pats in RULES
+                     if any(re.search(p, text) for p in pats)), None)
+    assert family("amd neural processing unit (npu) driver — amd") == "AMD NPU"
+    assert family("amd image processing unit (ipu) driver — amd") == "AMD NPU"
+    assert family("intel movidius vision processing unit (vpu) driver — intel") == "Intel NPU"
+    assert family("intel xmm 7560r+ lte-a pro drivers — hp") == "Intel WWAN"
+    assert family("intel be2xx/ax4xx/ax2xx/9xxx wi-fi driver") == "Intel Wi-Fi"
+    assert family("intel be2xx/ax4xx/ax2xx/9xxx bluetooth driver") != "Intel Wi-Fi"

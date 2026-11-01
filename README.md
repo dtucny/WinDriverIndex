@@ -28,6 +28,17 @@ By-hwid file names replace `\` with `_` and `&` with `+`
 (`PCI\VEN_10EC&DEV_8125` → `by-hwid/PCI_VEN_10EC+DEV_8125.json`). A missing
 file means no indexed family claims that ID.
 
+### WdiCheck: a Windows client
+
+[WdiCheck](https://github.com/dtucny/wdi-check) (WinUI 3, GPL-3.0) checks the
+drivers installed on a PC against this index: each device's installed INF
+version against the newest release, plus the machine's BIOS and vendor
+listing. It only reads; it never downloads or installs drivers. Builds are
+on its [Releases page](https://github.com/dtucny/wdi-check/releases/latest)
+(zip or MSIX, x64 and ARM64). They are not code-signed yet: Windows
+SmartScreen warns before running them, and the MSIX needs extra steps to
+install.
+
 ### Checking a machine against the index
 
 - **Match devices by HWID.** A device reports several hardware IDs, from most
@@ -102,7 +113,7 @@ file means no indexed family claims that ID.
   SMBIOS's image ID (`M1UKT79A`) or its bracketed number (`N2JET92W
   (1.36 )`) as a token.
 - **Families with no HWIDs** (`hwids: []`) are drivers whose packages the
-  index cannot unpack (installers, firmware tools, or HP/Lenovo packages,
+  index cannot unpack (installers, firmware tools, or Lenovo packages,
   which are indexed from catalog metadata only); show them via `by-board`.
 - **Fetch cheaply.** `manifest.json` carries each file's sha256; re-download
   only files whose hash changed.

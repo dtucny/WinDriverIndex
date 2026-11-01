@@ -1,5 +1,9 @@
 # Consumer requests: status
 
+Requests from WdiCheck are tracked as
+[GitHub issues](https://github.com/dtucny/WinDriverIndex/issues) since
+2026-11-01; this file keeps the replies to the first four rounds.
+
 Replies to the problems and requests from the driver-checker app, checked
 against the 2026-09-22 data. The data changes ship as `schema_version` 2.0.0
 (see CHANGELOG). README has a short guide to checking a machine against the
@@ -493,5 +497,5 @@ Not part of this round. Counts for planning:
 AMD's own chipset version was stuck at 8.08.12.551 since late September:
 AMD renamed the installer to lower case (`amd_chipset_software_8.09.28.1124.exe`)
 and the page pattern stopped matching. The upstream row is now
-8.09.28.1124. The AMD Chipset water doesn't move: it follows board vendors'
-7.x package numbering.
+8.09.28.1124. (The water didn't move then; that was a water-level bug, not
+the 7.x numbering: see issue #13.)
