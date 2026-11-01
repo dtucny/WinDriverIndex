@@ -8,6 +8,8 @@ published data schema is versioned separately (see `schema_version` in every
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-11-01
+
 ### Changed
 
 - Landing page "What changed": upstream sources read as "Windows Update"
@@ -22,6 +24,12 @@ published data schema is versioned separately (see `schema_version` in every
 - Payload fetch re-downloaded every Dell package (~30 GB) on each refresh:
   the "already stored" check only looked for `.zip`, and Dell payloads are
   stored as `.EXE`. It now matches any extension, as extract already did.
+
+### Security
+
+- certifi 2026.10.18: drops the emSign root CAs whose intermediate CA keys
+  were compromised (Dependabot alert, critical). The crawlers' TLS trust
+  store comes from certifi.
 
 ## [0.3.1] — 2026-10-23
 
@@ -440,7 +448,8 @@ First working end-to-end pipeline across all four in-scope vendors.
   "BlueTooth Driver" entries resolve only via INF evidence.
 - Laptops, GPUs, and pre-AM4/pre-12th-gen hardware are out of scope for v1.
 
-[Unreleased]: https://github.com/dtucny/WinDriverIndex/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/dtucny/WinDriverIndex/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/dtucny/WinDriverIndex/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/dtucny/WinDriverIndex/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/dtucny/WinDriverIndex/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/dtucny/WinDriverIndex/compare/v0.1.0...v0.2.0
