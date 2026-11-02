@@ -180,6 +180,15 @@ all in two years</b>.</p>
 <div class="card scroll" id="fullmetric"></div>
 <p class="note" style="margin-top:12px" id="tiernote"></p>
 
+<h2>How long do they get updates?</h2>
+<p class="note">From launch (a board's oldest BIOS) to the newest driver
+package each driver family got, as the median across the board's families,
+and to its newest BIOS. Motherboards and systems launched at least two years
+ago; graphics cards are left out, since their drivers come from the chip
+maker.</p>
+<div class="card scroll" id="supwrap"></div>
+<p class="note" style="margin-top:12px" id="supnote"></p>
+
 <h2>Is it the vendor or the silicon?</h2>
 <p class="note">The same pairings split by whose chip the driver is for. Read
 a row across: lag that is high for every vendor is the silicon's; a column
@@ -373,6 +382,31 @@ running them, and the MSIX needs extra steps to install.</p>
     counts machines whose listing has had no driver update of any kind in over
     two years — not slow support, none. ${LABEL[worstSilent]} leads that column
     with ${ws.silent_2yr} machines (${ws.silent_2yr_pct}% of its catalogue).`;
+
+  // support spans: launch (oldest BIOS) to the last driver / BIOS update
+  if(d.support){
+    const sv=Object.keys(d.support).filter(v=>d.support[v].median_driver_span_days!=null)
+      .sort((a,b)=>d.support[a].median_driver_span_days-d.support[b].median_driver_span_days);
+    const none=Object.keys(d.support).filter(v=>d.support[v].median_driver_span_days==null);
+    const span=dd=>dd>=365?(dd/365).toFixed(1)+' yr':Math.round(dd/30.4)+' mo';
+    $('supwrap').innerHTML=`<table><thead><tr><th>Vendor</th>
+      <th class="num">Driver updates for</th><th class="num">BIOS updates for</th>
+      <th class="num">Drivers stopped within 1 yr</th><th class="num">BIOS outlived drivers by 1 yr+</th>
+      <th class="num">Boards</th></tr></thead><tbody>`+
+      sv.map(v=>{const x=d.support[v];return `<tr><td class="vend">${LABEL[v]||v}</td>
+        <td class="num">${span(x.median_driver_span_days)}</td><td class="num">${span(x.median_bios_span_days)}</td>
+        <td class="num">${x.driver_span_under_1y_pct}%</td><td class="num">${x.bios_outlived_drivers_1y_pct}%</td>
+        <td class="num">${fmt(x.boards)}</td></tr>`;}).join('')+
+      (none.length?`<tr><td colspan="6" class="note" style="padding:8px 14px">${none.map(v=>LABEL[v]||v).join(' and ')}:
+        no launch dates (only the latest BIOS is listed, so a machine's launch can't be dated).</td></tr>`:'')+
+      '</tbody></table>';
+    const short=sv.slice().sort((a,b)=>d.support[b].bios_outlived_drivers_1y_pct-d.support[a].bios_outlived_drivers_1y_pct)[0];
+    if(short){const x=d.support[short];
+      $('supnote').innerHTML=`Almost no board is abandoned on day one; support fades. ${LABEL[short]||short}'s
+        typical driver family gets updates for ${span(x.median_driver_span_days)} against
+        ${span(x.median_bios_span_days)} of BIOS updates, and on ${x.bios_outlived_drivers_1y_pct}% of its boards
+        BIOS updates were still coming a year after the last driver package of any kind.`;}
+  }
 
   // silicon vendor × board vendor
   if(d.silicon){

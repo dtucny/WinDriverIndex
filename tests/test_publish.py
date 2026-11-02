@@ -202,3 +202,38 @@ def test_builds_behind_counts_releases_up_to_the_water():
     assert _builds_behind(hist, (1, 2)) == 2
     assert _builds_behind(hist, (1, 4)) == 1   # a build nobody else lists
     assert _builds_behind(hist, (1, 9)) == 0   # above the water (a rejected line)
+
+
+def test_support_spans_from_oldest_bios(tmp_path, monkeypatch):
+    import datetime as dt
+    from winidx import db, publish
+    conn = db.connect(tmp_path / "t.sqlite")
+    monkeypatch.setattr(publish, "SUPPORT_MIN_BOARDS", 1)
+    conn.execute("INSERT INTO family (family_id, name, silicon_vendor, component) VALUES"
+                 " (1,'a','x','lan'), (2,'b','x','lan'), (3,'c','x','lan')")
+    for bid, vendor in ((1, "gigabyte"), (2, "hp")):
+        conn.execute("INSERT INTO board (board_id, vendor, vendor_product_id, name, first_seen,"
+                     " last_seen) VALUES (?, ?, ?, 'x', 'd', 'd')", (bid, vendor, str(bid)))
+    n = 0
+
+    def listing(bid, kind, fam, date):
+        nonlocal n
+        n += 1
+        conn.execute("INSERT INTO artefact (artefact_id, vendor, vendor_artefact_id, kind, family_id,"
+                     " release_date, first_seen, last_seen) VALUES (?, 'v', ?, ?, ?, ?, 'd', 'd')",
+                     (n, str(n), kind, fam, date))
+        conn.execute("INSERT INTO board_artefact VALUES (?, ?, ?, 'd', 'd')", (bid, n, date))
+
+    for date in ("2020-01-01", "2021-01-01", "2024-01-01"):   # launch 2020, BIOS for 4 years
+        listing(1, "bios", None, date)
+    for fam, date in ((1, "2020-03-01"), (2, "2020-06-01"), (3, "2022-01-01")):
+        listing(1, "driver", fam, date)
+    listing(2, "bios", None, "2020-01-01")   # HP: only its latest BIOS, no launch date
+    for fam in (1, 2, 3):
+        listing(2, "driver", fam, "2020-02-01")
+    sup = publish._support_spans(conn)
+    g = sup["gigabyte"]
+    assert g["median_driver_span_days"] == (dt.date(2020, 6, 1) - dt.date(2020, 1, 1)).days
+    assert g["median_bios_span_days"] == 1461 and g["driver_span_under_1y_pct"] == 100
+    assert g["bios_outlived_drivers_1y_pct"] == 100   # BIOS went on 2 years past the last driver
+    assert sup["hp"] == {"boards": 0, "of": 1}

@@ -86,6 +86,7 @@ def run(conn: sqlite3.Connection, *, log=print) -> dict:
     dash = _dashboard(conn, families, water, board_lag, effective, bios_data)
     dash["changes"] = changes
     dash["silicon"] = _dashboard_silicon(silicon_lag)
+    dash["support"] = _support_spans(conn)
     emit("dashboard.json", dash)
     for f in families.values():
         f["version_equiv"] = SCHEME_EQUIV.get(f["name"])
@@ -1202,6 +1203,80 @@ _GROUP = {"chipset": "Chipset", "npu": "Chipset", "graphics": "Graphics",
           "camera": "Camera", "wwan": "WWAN"}
 _GROUP_ORDER = ["Chipset", "Graphics", "Audio", "LAN", "Wireless", "Storage",
                 "USB", "Camera", "WWAN", "Other"]
+
+
+# Support spans need a launch date, and only MSI publishes one. A board's
+# oldest BIOS stands in (for MSI it lands a median 14 days before the
+# published launch), which needs the vendor to keep its BIOS history: HP and
+# Lenovo list only their latest BIOS, so their boards rarely qualify.
+SUPPORT_MIN_BIOS = 3          # BIOS releases listed: enough history to date launch
+SUPPORT_MIN_AGE_DAYS = 730    # launched long enough ago for support to have run
+SUPPORT_MIN_FAMILIES = 3
+SUPPORT_MIN_BOARDS = 30       # vendors with fewer qualifying boards are shown as such
+
+
+def _support_spans(conn) -> dict:
+    """How long each vendor kept updating a board, from launch (its oldest
+    BIOS) to each driver family's newest package and to its newest BIOS.
+    'Driver span' is the board's median across its families, so one shared
+    platform package (AMD's chipset driver on every AM4 board) can't stand
+    for the board's support; listing dates are package dates, so an update
+    is a newer package appearing on the board's page. Graphics cards are
+    left out (nobody gets GPU drivers from the card maker)."""
+    today = dt.date.today()
+
+    def day(s):
+        try:
+            return dt.date.fromisoformat(s[:10])
+        except (TypeError, ValueError):
+            return None
+
+    bios: dict[int, list[dt.date]] = defaultdict(list)
+    for bid, d in conn.execute(
+            "SELECT ba.board_id, a.release_date FROM board_artefact ba"
+            " JOIN artefact a ON a.artefact_id = ba.artefact_id"
+            " WHERE a.kind = 'bios' AND a.release_date IS NOT NULL"):
+        if (x := day(d)) and x.year > 2010:   # MSI's '0000-00-00'
+            bios[bid].append(x)
+    newest: dict[int, list[dt.date]] = defaultdict(list)
+    for bid, d in conn.execute(
+            "SELECT ba.board_id, MAX(ba.listed_date) FROM board_artefact ba"
+            " JOIN artefact a ON a.artefact_id = ba.artefact_id"
+            " WHERE a.kind = 'driver' AND a.is_beta = 0 AND a.family_id IS NOT NULL"
+            " AND ba.listed_date IS NOT NULL GROUP BY ba.board_id, a.family_id"):
+        if x := day(d):
+            newest[bid].append(x)
+    per_vendor: dict[str, list[tuple]] = defaultdict(list)
+    boards_of: dict[str, int] = defaultdict(int)
+    for bid, vendor, ptype in conn.execute(
+            "SELECT board_id, vendor, product_type FROM board"):
+        if ptype == "graphics-card":
+            continue
+        boards_of[vendor] += 1
+        b, fams = bios.get(bid, []), newest.get(bid, [])
+        if len(b) < SUPPORT_MIN_BIOS or len(fams) < SUPPORT_MIN_FAMILIES:
+            continue
+        launch = min(b)
+        if (today - launch).days < SUPPORT_MIN_AGE_DAYS:
+            continue
+        driver = statistics.median(max(0, (x - launch).days) for x in fams)
+        per_vendor[vendor].append((driver, (max(b) - launch).days,
+                                   (max(b) - max(fams)).days))
+    out = {}
+    for vendor in sorted(boards_of):
+        xs = per_vendor.get(vendor, [])
+        row = {"boards": len(xs), "of": boards_of[vendor]}
+        if len(xs) >= SUPPORT_MIN_BOARDS:
+            drv, bio = sorted(x[0] for x in xs), sorted(x[1] for x in xs)
+            row |= {"median_driver_span_days": round(drv[len(xs) // 2]),
+                    "median_bios_span_days": bio[len(xs) // 2],
+                    "driver_span_under_1y_pct": round(100 * sum(x < 365 for x in drv) / len(xs), 1),
+                    # BIOS updates still coming a year after the board's
+                    # last driver package of any kind
+                    "bios_outlived_drivers_1y_pct": round(
+                        100 * sum(x[2] > 365 for x in xs) / len(xs), 1)}
+        out[vendor] = row
+    return out
 
 
 def _dashboard(conn, families, water, board_lag, effective, bios_data) -> dict:

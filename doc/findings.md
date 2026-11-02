@@ -714,3 +714,24 @@ Bluetooth water from 2023-06). Water age per family is the direct test of
   there's no upstream release history to count from. Published as
   `builds_behind` / `builds_365d` with that definition; a real releases
   count needs the upstream history kept.
+
+## 2026-11-02 — abandonment vs fading support
+
+- "Never updated since launch" barely exists outside graphics cards: 3 of
+  1,640 boards launched ≥2 years ago with a usable launch date. Listing
+  dates are package dates (HP 100%, MSI/Lenovo ~99%, ASUS 91%, Dell 87%
+  equal the artefact's own date), so a launch date has to come from
+  elsewhere: the oldest BIOS, which for MSI lands a median 14 days before
+  its published launch (p10 −115, p90 +15). HP (1.2 BIOS per board) and
+  Lenovo (2.5) keep only recent BIOS, so they can't be dated.
+- Graphics cards are where day-one abandonment is common: 256 Gigabyte
+  cards list one NVIDIA driver from launch and nothing since.
+- Support span (launch → newest package, median across a board's
+  families): MSI 3.5 yr, Dell 3.2, ASRock 3.0, ASUS 2.7, Gigabyte 1.7.
+  BIOS spans 3.6–4.1 yr for all five. Gigabyte is the outlier: 12.9% of
+  boards' typical family stopped within a year, and on 21.1% BIOS updates
+  kept coming a year after the last driver package of any kind (ASRock
+  10.6%, ASUS 3.8%, Dell 0.3%, MSI 0).
+- "Any family updated" is too generous a span: shared platform packages
+  (AMD chipset on every AM4 board) keep ~80–100% of boards "updated"; the
+  per-family median is the measure published.

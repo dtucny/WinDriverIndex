@@ -21,6 +21,13 @@ published data schema is versioned separately (see `schema_version` in every
   count, parallel lines mix in), so they don't normalise for a silicon
   vendor's cadence.
 
+- Support spans (`dashboard.json` `support`, landing page "How long do
+  they get updates?"): per vendor, how long after launch a board's driver
+  families and its BIOS kept getting updates, the share whose typical
+  family stopped within a year, and the share whose BIOS updates outlived
+  the last driver package by a year. Launch is the board's oldest BIOS
+  (only MSI publishes launch dates); HP and Lenovo list only their latest
+  BIOS, so they show as having no launch dates.
 - `changes.json` keeps the last 10 refreshes in `history`, newest first
   (the top-level fields stay the latest). Publishes on the same day merge
   into one refresh, as deploy's dated snapshots do. The landing page's
