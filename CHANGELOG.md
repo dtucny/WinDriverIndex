@@ -8,6 +8,8 @@ published data schema is versioned separately (see `schema_version` in every
 
 ## [Unreleased]
 
+## [0.10.0] — 2026-11-02
+
 ### Added
 
 - `silicon-lag.json` families carry their water's age (`water_age_days`:
@@ -600,7 +602,8 @@ First working end-to-end pipeline across all four in-scope vendors.
   "BlueTooth Driver" entries resolve only via INF evidence.
 - Laptops, GPUs, and pre-AM4/pre-12th-gen hardware are out of scope for v1.
 
-[Unreleased]: https://github.com/dtucny/WinDriverIndex/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/dtucny/WinDriverIndex/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/dtucny/WinDriverIndex/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/dtucny/WinDriverIndex/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/dtucny/WinDriverIndex/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/dtucny/WinDriverIndex/compare/v0.6.0...v0.7.0

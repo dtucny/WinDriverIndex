@@ -1,6 +1,6 @@
 [project]
 name = "winidx"
-version = "0.9.0"
+version = "0.10.0"
 description = "Motherboard driver index: crawl vendor support sites, dedup artefacts, compute the water-level metric"
 license = "MIT"
 requires-python = ">=3.14"
