@@ -10,3 +10,6 @@ dist/
 public/*
 !public/index.html
 !public/board.html
+
+# compose settings for the Docker host (ops/docker/README.md)
+.env

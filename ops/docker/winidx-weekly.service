@@ -1,0 +1,9 @@
+# Weekly refresh in the container; pairs with ops/winidx-weekly.timer.
+# Install: see ops/docker/README.md.
+[Unit]
+Description=WinDriverIndex weekly crawl and publish (Docker)
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/git/WinDriverIndex
+ExecStart=/usr/bin/docker compose run --rm winidx

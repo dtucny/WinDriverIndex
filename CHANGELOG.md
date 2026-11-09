@@ -8,6 +8,16 @@ published data schema is versioned separately (see `schema_version` in every
 
 ## [Unreleased]
 
+### Added
+
+- The refresh runs in Docker (`compose.yaml`, `ops/docker/`): a toolchain
+  image (uv, 7-Zip, innoextract from master, rclone, Camoufox) run against a
+  mounted checkout, with the payload store mountable from a NAS. Host setup
+  and storage sizing are in `ops/docker/README.md`.
+- `winidx prune --keep-days N` deletes extracted payloads past a grace
+  period. Fetch now treats an extracted payload as held, so a pruned store
+  doesn't trigger downloads again.
+
 ## [0.10.0] — 2026-11-02
 
 ### Added

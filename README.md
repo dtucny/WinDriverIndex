@@ -152,6 +152,8 @@ uv run winidx status           # row counts and recent runs
 
 External tools: `7zz` (7-Zip, for `extract`), `rclone` (for `deploy`), and a
 Camoufox browser (`uv run python -m camoufox fetch`, for ASRock listings).
+Or run the whole refresh in Docker, which bundles all of them:
+`docker compose run --rm winidx` (setup in [ops/docker/README.md](ops/docker/README.md)).
 
 ## Deployment (Cloudflare R2)
 

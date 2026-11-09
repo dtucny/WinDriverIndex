@@ -1,0 +1,21 @@
+# Weekly refresh in a container: `docker compose run --rm winidx`.
+# See ops/docker/README.md for host setup (checkout, NAS mount, timer).
+services:
+  winidx:
+    build:
+      context: .
+      dockerfile: ops/docker/Dockerfile
+      args:
+        UID: ${WINIDX_UID:-1000}
+    image: winidx
+    volumes:
+      - .:/app
+      # The payload store is large, write-once and read once: fine on a NAS.
+      # The SQLite database stays on local disk (no locking over NFS/SMB).
+      - ${WINIDX_PAYLOADS:-./data/payloads}:/app/data/payloads
+    env_file:
+      - path: ${WINIDX_ENV_FILE:-${HOME}/.config/winidx/r2.env}
+        required: false
+    environment:
+      WINIDX_KEEP_DAYS: ${WINIDX_KEEP_DAYS-30}
+    shm_size: 1gb   # Firefox (Camoufox, ASRock)

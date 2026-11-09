@@ -1,0 +1,5 @@
+# The image only needs the lockfile; the checkout is mounted at run time.
+*
+!pyproject.toml
+!uv.lock
+!.python-version

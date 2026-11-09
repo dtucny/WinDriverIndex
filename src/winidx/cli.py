@@ -112,6 +112,13 @@ def main(argv: list[str] | None = None) -> int:
         db.connect(), a.file, dt.date.today().isoformat(), families=a.family,
         version=a.version, url=a.url, published=a.published), 0)[1])
 
+    p = sub.add_parser("prune", help="delete extracted payloads past a grace period")
+    p.add_argument("--keep-days", type=int, default=30,
+                   help="keep payloads downloaded within this many days (default 30)")
+    p.add_argument("--dry-run", action="store_true", help="report without deleting")
+    p.set_defaults(func=lambda a: (fetch.prune(
+        db.connect(), a.keep_days, dry_run=a.dry_run), 0)[1])
+
     p = sub.add_parser("extract", help="unpack payloads, hash INF/SYS, pull HWIDs (§6.2)")
     p.add_argument("--limit", type=int, help="extract at most N payloads")
     p.add_argument("--retry-quarantined", action="store_true",

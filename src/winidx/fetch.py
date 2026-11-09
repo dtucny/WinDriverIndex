@@ -3,7 +3,9 @@ content-addressed store, hash, verify against vendor-published hashes.
 
 Store layout: data/payloads/{sha256[:2]}/{sha256}{ext}. The store holds one
 copy per unique payload; artefact rows point at it via their sha256 column
-(computed here for vendors that don't publish one).
+(computed here for vendors that don't publish one). `prune` may delete
+payloads once extracted; an extracted payload counts as held, so fetch
+doesn't download it again.
 
 MSI URLs are overwritten in place across versions (see doc/findings.md), so a
 hash mismatch against the published value likely means the listing moved on —
@@ -14,6 +16,7 @@ from __future__ import annotations
 
 import hashlib
 import sqlite3
+import time
 from pathlib import Path
 
 from . import config
@@ -105,7 +108,7 @@ def _fetch_upstream(conn, client, limit, log) -> int:
         " ORDER BY p.family").fetchall()
     n = 0
     for row in rows:
-        if row["sha256"] and stored_payload(row["sha256"]):
+        if row["sha256"] and _held(conn, row["sha256"]):
             continue
         if limit is not None and n >= limit:
             break
@@ -152,13 +155,41 @@ def _already_stored(conn, row) -> bool:
             "SELECT sha256 FROM artefact WHERE md5 = ? AND sha256 IS NOT NULL LIMIT 1",
             (row["md5"],)).fetchone()
         sha = peer["sha256"] if peer else None
-        if sha and stored_payload(sha):
+        if sha and _held(conn, sha):
             conn.execute("UPDATE artefact SET sha256 = ? WHERE artefact_id = ?",
                          (sha, row["artefact_id"]))
             conn.commit()
             return True
         return False
-    return bool(sha) and stored_payload(sha) is not None
+    return bool(sha) and _held(conn, sha)
+
+
+def _held(conn, sha: str) -> bool:
+    """In the store, or already extracted (the store may have been pruned)."""
+    return stored_payload(sha) is not None or conn.execute(
+        "SELECT 1 FROM payload_file WHERE payload_sha256 = ? LIMIT 1",
+        (sha,)).fetchone() is not None
+
+
+def prune(conn: sqlite3.Connection, keep_days: int, *, dry_run: bool = False,
+          log=print) -> dict:
+    """Delete stored payloads that are extracted and older than keep_days.
+    Unextracted and quarantined payloads stay, so extract can still reach
+    them; the grace period lets a recent extract fix re-read new payloads
+    (older ones are fetched again if their rows are cleared)."""
+    done = {r[0] for r in conn.execute("SELECT DISTINCT payload_sha256 FROM payload_file")}
+    cutoff = time.time() - keep_days * 86400
+    n = size = 0
+    for path in config.PAYLOAD_DIR.glob("*/*"):
+        st = path.stat()
+        if path.name.split(".")[0] in done and st.st_mtime < cutoff:
+            n += 1
+            size += st.st_size
+            if not dry_run:
+                path.unlink()
+    stats = {"pruned": n, "gb": round(size / 1e9, 1)}
+    log(f"prune{' (dry run)' if dry_run else ''}: {stats}")
+    return stats
 
 
 def _download(client: PoliteClient, url: str, *,
